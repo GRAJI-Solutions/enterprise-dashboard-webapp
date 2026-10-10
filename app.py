@@ -26,41 +26,34 @@ def after_request(response):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     session.clear()
+    
+    if request.method == 'POST':
+        registro = request.form.get('employee_register')
+        senha = request.form.get('senha')
 
-    if request.method == "POST":
-        # Ensure username was submitted
-        if not request.form.get("username"):
-            return httperror("Precisa informar o número de registro", 403)
+        # Aqui entra sua query SQL para buscar o usuário e a senha no banco
+        # Exemplo: usuario = db.execute("SELECT * FROM usuarios WHERE registro = ?", registro)
+        
+        # Simulando uma validação aprovada para o exemplo
+        usuario_valido = True
+        nivel_chefe = True # Mudar para False se for funcionário comum
+        
+        if usuario_valido:
+            session['usuario_id'] = registro
+            session['is_chefe'] = nivel_chefe
 
-        # Ensure password was submitted
-        elif not request.form.get("password"):
-            return httperror("Precisa informar a senha", 403)
+            # Redireciona para o dashboard correto com base no cargo
+            if nivel_chefe:
+                return redirect('/dashboard_enterprise')
+            return redirect('/dashboard')
 
-        # Query database for username
-        rows = sqlexecute(
-            "SELECT * FROM users WHERE username = ?", request.form.get("username")
-        )
-
-        # Ensure username exists and password is correct
-        if len(rows) != 1 or not check_password_hash(
-            rows[0]["hash"], request.form.get("password")
-        ):
-            return httperror("Número de registro e/ou senha inválidos", 403)
-
-        # Remember which user has logged in
-        session["user_id"] = rows[0]["id"]
-
-        # Redirect user to home page
-        return redirect("/dashboard")
-
-    else:
-        return render_template("login.html")
-
+    return render_template('login.html')
 
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Rota GET padrão, aqui você faz o SELECT das horas trabalhadas, salário, etc
     return render_template('dashboard.html')
 
 
