@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS dados_profissionais (
     id_dados_profissionais INTEGER PRIMARY KEY AUTOINCREMENT,
     cargo TEXT NOT NULL CHECK (length(trim(cargo)) > 0),
     contrato TEXT NOT NULL CHECK (length(contrato) > 0),
+    email_corporativo TEXT NOT NULL UNIQUE
+        CHECK (length(trim(email_corporativo)) > 0 AND email_corporativo GLOB '*@*.*'),
     turno TEXT CHECK (turno IN ('Manhã', 'Tarde', 'Noite', 'Integral')),
     carga_horaria_semanal_contrato INTEGER CHECK (carga_horaria_semanal_contrato > 0 AND carga_horaria_semanal_contrato <= 44),
     departamento TEXT NOT NULL CHECK (length(departamento) > 0),
