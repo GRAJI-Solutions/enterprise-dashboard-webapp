@@ -1,12 +1,124 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Graji Solutions</title>
-</head>
-<body>
-    {% block body %}
-    {% endblock %}
-</body>
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Graji Solutions{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+
+    <div class="app">
+      <!-- ======================= SIDEBAR ======================= -->
+      <aside class="sidebar">
+        <div class="sidebar__user">
+          <div class="avatar">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4.2" />
+              <path d="M3.5 21c0-4.7 3.8-7.5 8.5-7.5s8.5 2.8 8.5 7.5z" />
+            </svg>
+          </div>
+          <div class="sidebar__user-info">
+            <span class="sidebar__user-name"
+              >{{ employee_in_session_fullname.name if employee_in_session_fullname is defined else 'Nome' }}</span
+            >
+            <span class="sidebar__user-surname"
+              >{{ employee_in_session_fullname.surname if employee_in_session_fullname is defined else 'Sobrenome'}}</span
+            >
+          </div>
+        </div>
+
+        <hr class="sidebar__divider" />
+
+        <nav class="sidebar__nav">
+
+          <a
+            href="{{ url_for('dashboard') }}"
+            class="nav-link {% if pagina == 'dashboard' %}nav-link--active{% endif %}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 2 12h3v9h5v-6h4v6h5v-9h3z" />
+            </svg>
+            <span>Dashboard</span>
+          </a>
+
+          <a
+            href="{{ url_for('attendence') }}"
+            class="nav-link {% if pagina == 'bater_ponto' %}nav-link--active{% endif %}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" fill="none" stroke-width="2" />
+              <path
+                d="M12 7v5l3.5 2"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span>Bater ponto</span>
+          </a>
+
+          {% if session["access_level"] >= 1 %}
+          <a
+            href="{{ url_for('employees') }}"
+            class="nav-link {% if pagina == 'colaboradores' %}nav-link--active{% endif %}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z" />
+            </svg>
+            <span>Colaboradores</span>
+          </a>
+
+          {% if session["access_level"] == 2 %}
+          <a
+            href="{{ url_for('dashboard_enterprise') }}"
+            class="nav-link {% if pagina == 'corporacao' %}nav-link--active{% endif %}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M4 21V5l9-2v18zm10 0V9l6 1.5V21zM7 8h2v2H7zm0 4h2v2H7zm0 4h2v2H7z"
+              />
+            </svg>
+            <span>Corporação</span>
+          </a>
+          {% endif %}
+
+          {% endif %}
+        </nav>
+        <a href="{{ url_for('logout') }}" class="nav-link nav-link--logout">
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            fill="none"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="M16 17l5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+          <span>Sair</span>
+        </a>
+      </aside>
+
+      <!-- ======================= CONTEÚDO ======================= -->
+      <main class="content">{% block body %} {% endblock %}</main>
+    </div>
+
+    {% block scripts %}{% endblock %}
+  </body>
 </html>
