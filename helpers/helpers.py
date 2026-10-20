@@ -60,10 +60,7 @@ def level_required(required_level):
         def decorated_function(*args, **kwargs):
             user_id = session.get("user_id")
 
-            result = sqlexecute(
-                "SELECT nivel_acesso FROM login WHERE id_login = ?",
-                (user_id,)
-            )
+            result = sqlexecute("SELECT nivel_acesso FROM login WHERE id_login = ?",user_id)
 
             if not result or int(result[0]["nivel_acesso"]) < required_level:
                 return httperror("Você não tem permissão para acessar esta página.", 403)
