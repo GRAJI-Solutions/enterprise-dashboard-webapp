@@ -52,7 +52,7 @@ body {
   font-family: var(--font);
   color: var(--text);
   background-color: #0b1226;
-  background-image: url("img/fundo.png");
+  background-image: url("/static/img/fundo.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

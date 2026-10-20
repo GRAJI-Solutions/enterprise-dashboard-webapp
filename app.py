@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, session, send_from_
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from helpers import sqlexecute, login_required, level_required, httperror
+from helpers.helpers import sqlexecute, login_required, level_required, httperror
 
 
 app = Flask(__name__)
@@ -12,6 +12,7 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
+
 
 @app.after_request
 def after_request(response):
@@ -29,7 +30,7 @@ def login():
 
     if request.method == "POST":
         # Ensure username was submitted
-        if not request.form.get("username"):
+        if not request.form.get("register_code"):
             return httperror("Precisa informar o número de registro", 403)
 
         # Ensure password was submitted
@@ -38,22 +39,21 @@ def login():
 
         # Query database for username
         rows = sqlexecute(
-            "SELECT * FROM users WHERE username = ?", request.form.get("username")
+            "SELECT * FROM login WHERE registro = ?", request.form.get("register_code")
         )
 
         # Ensure username exists and password is correct
-        if len(rows) != 1 or not check_password_hash(
-            rows[0]["hash"], request.form.get("password")
-        ):
+        if len(rows) != 1 or not check_password_hash(rows[0]["senha"], request.form.get("password")):
             return httperror("Número de registro e/ou senha inválidos", 403)
 
         # Remember which user has logged in
-        session["user_id"] = rows[0]["id"]
+        session["user_id"] = rows[0]["id_login"]
+        session["access_level"] = rows[0]["nivel_acesso"]
 
         # Redirect user to home page
         return redirect("/dashboard")
 
-    else:
+    else:       
         return render_template("login.html")
 
 
@@ -68,7 +68,7 @@ def dashboard():
 @login_required
 def attendence():
     if request.method == 'POST':
-        action = request.form.get('ponto_clicado')
+        action = request.form.get('attendence_action')
         
         return redirect('/attendence')
 

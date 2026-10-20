@@ -19,12 +19,6 @@
     {% block head %}{% endblock %}
   </head>
   <body>
-    {# ------------------------------------------------------------------ PERFIL
-    DO USUÁRIO Por enquanto usa uma variável simples. Depois troque por algo do
-    banco, por exemplo: {% set is_chefe = current_user.cargo in ['chefe', 'rh']
-    %} ------------------------------------------------------------------ #} {%
-    set is_chefe = (usuario.cargo in ['chefe', 'rh']) if usuario is defined else
-    false %}
 
     <div class="app">
       <!-- ======================= SIDEBAR ======================= -->
@@ -50,8 +44,6 @@
         <hr class="sidebar__divider" />
 
         <nav class="sidebar__nav">
-          {# Aba ativa: defina {% set pagina = 'dashboard' %} em cada tela filha
-          #}
 
           <a
             href="{{ url_for('dashboard') }}"
@@ -64,7 +56,7 @@
           </a>
 
           <a
-            href="{{ url_for('bater_ponto') }}"
+            href="{{ url_for('attendence') }}"
             class="nav-link {% if pagina == 'bater_ponto' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -79,9 +71,9 @@
             <span>Bater ponto</span>
           </a>
 
-          {% if is_chefe %}
+          {% if session["access_level"] >= 1 %}
           <a
-            href="{{ url_for('colaboradores') }}"
+            href="{{ url_for('employees') }}"
             class="nav-link {% if pagina == 'colaboradores' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -91,8 +83,9 @@
             <span>Colaboradores</span>
           </a>
 
+          {% if session["access_level"] == 2 %}
           <a
-            href="{{ url_for('corporacao') }}"
+            href="{{ url_for('dashboard_enterprise') }}"
             class="nav-link {% if pagina == 'corporacao' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -102,6 +95,8 @@
             </svg>
             <span>Corporação</span>
           </a>
+          {% endif %}
+
           {% endif %}
         </nav>
         <a href="{{ url_for('logout') }}" class="nav-link nav-link--logout">

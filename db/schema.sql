@@ -22,8 +22,9 @@ CREATE TABLE IF NOT EXISTS login (
     registro TEXT NOT NULL UNIQUE
         CHECK (length(trim(registro)) > 0),
     senha TEXT NOT NULL CHECK (length(senha) > 1),
-    nivel_acesso TEXT NOT NULL
-        CHECK (length(trim(nivel_acesso)) > 0)
+    nivel_acesso INTEGER NOT NULL
+        CHECK (nivel_acesso >= 0)
+        CHECK (nivel_acesso <= 2)
 );
 
 CREATE TABLE IF NOT EXISTS colaborador (
