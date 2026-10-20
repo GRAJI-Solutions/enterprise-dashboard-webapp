@@ -32,11 +32,10 @@
           </div>
           <div class="sidebar__user-info">
             <span class="sidebar__user-name"
-              >{{ usuario.nome if usuario is defined else 'Nome' }}</span
+              >{{ employee_in_session_fullname.name if employee_in_session_fullname is defined else 'Nome' }}</span
             >
             <span class="sidebar__user-surname"
-              >{{ usuario.sobrenome if usuario is defined else 'Sobrenome'
-              }}</span
+              >{{ employee_in_session_fullname.surname if employee_in_session_fullname is defined else 'Sobrenome'}}</span
             >
           </div>
         </div>
