@@ -32,7 +32,7 @@ Databases (SQLite)
 
 Ignores database files in any subdirectory
 
-*/.db
+**/.db
 /.sqlite
 /.sqlite3
 /.db-journal
