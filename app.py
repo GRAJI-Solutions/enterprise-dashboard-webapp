@@ -231,9 +231,9 @@ def employee_details(employee_id):
                 # 4. Atualizar Escala (Estratégia: remove as escalas anteriores e insere as novas marcadas)
                 sqlexecute("DELETE FROM escala WHERE id_colaborador = ?;", employee_id)
                 
-                dias_semana = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
-                for dia in dias_semana:
-                    if request.form.get(f'escala[{dia}][ativo]'):
+                workdays = [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+                for day in workdays:
+                    if request.form.get(f'schedule[{day}][active]'):
                         sqlexecute(
                             """
                             INSERT INTO escala (
@@ -242,10 +242,10 @@ def employee_details(employee_id):
                             ) VALUES (?, ?, ?, ?, ?, ?);
                             """,
                             dia,
-                            request.form.get(f'escala[{dia}][hora_entrada]'),
-                            request.form.get(f'escala[{dia}][inicio_intervalo]'),
-                            request.form.get(f'escala[{dia}][fim_intervalo]'),
-                            request.form.get(f'escala[{dia}][hora_saida]'),
+                            request.form.get(f'schedule[{day}][clock_in]'),
+                            request.form.get(f'schedule[{day}][break_start]'),
+                            request.form.get(f'schedule[{day}][break_end]'),
+                            request.form.get(f'schedule[{day}][clock_out]'),
                             employee_id
                         )
                         
@@ -350,11 +350,12 @@ def onboard_employee():
             return httperror("Todos os campos obrigatórios devem ser preenchidos.", 400)
         
         # Check if at least one workday is selected
-        workdays = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo']
-        has_selected_day = any(request.form.get(f'escala[{day}][ativo]') for day in workdays)
+        workdays = [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+        has_selected_day = any(request.form.get(f'schedule[{day}][active]') for day in workdays)
 
         if not has_selected_day:
             return httperror("Você deve selecionar pelo menos um dia de escala de trabalho.", 400)
+            
         try:
             #Insert data into the database
             id_login = sqlexecute(
@@ -405,15 +406,15 @@ def onboard_employee():
             )
 
             for day in workdays:
-                ativo = request.form.get(f'escala[{day}][ativo]')
+                active = request.form.get(f'schedule[{day}][active]')
                 
                 if ativo:
-                    clock_in = request.form.get(f'escala[{day}][hora_entrada]') or None
-                    break_start = request.form.get(f'escala[{day}][inicio_intervalo]') or None
-                    break_end = request.form.get(f'escala[{day}][fim_intervalo]') or None
-                    clock_out = request.form.get(f'escala[{day}][hora_saida]') or None
+                    clock_in = request.form.get(f'schedule[{day}][clock_in]') or None
+                    break_start = request.form.get(f'schedule[{day}][break_start]') or None
+                    break_end = request.form.get(f'schedule[{day}][break_end]') or None
+                    clock_out = request.form.get(f'schedule[{day}][clock_out]') or None
                 
-                # Insere a escala utilizando a sua função sqlexecute com parâmetros seguros (?)
+                # Inserts the schedule using the sqlexecute function, with safe arguments (?)
                 sqlexecute(
                     """
                     INSERT INTO escala (
