@@ -1,9 +1,49 @@
-<form action="/login" method="post">
-    <div class="mb-3">
-        <input autocomplete="off" autofocus class="form-control mx-auto w-auto" name="register_code" placeholder="Username" type="text" required>
-    </div>
-    <div class="mb-3">
-        <input class="form-control mx-auto w-auto" name="password" placeholder="password" type="password" required>
-    </div>
-    <button class="btn btn-primary" type="submit">Log In</button>
-</form>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body>
+  <main class="login">
+    <header class="login-cabecalho">
+      <div class="marca">
+        <img class="marca-simbolo" src="/static/img/graji-logo.png" alt="">
+        <span class="marca-nome">GRAJI</span>
+        <span class="marca-descricao">SOLUTIONS</span>
+      </div>
+    </header>
+
+    <section class="login-conteudo">
+      <h1>Login</h1>
+
+      <form action="/login" method="post">
+        <label class="rotulo" for="register_code">Número de registro</label>
+        <input
+          id="register_code"
+          name="register_code"
+          type="text"
+          placeholder="Número de registro"
+          autocomplete="off"
+          autofocus
+          required
+        >
+
+        <label class="rotulo" for="password">Senha</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="Senha"
+          autocomplete="current-password"
+          required
+        >
+
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

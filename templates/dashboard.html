@@ -1,8 +1,86 @@
 {% extends "layout.html" %}
+{% set pagina = 'dashboard' %}
 
-{% block title %}
-Dashboard
-{% endblock %}
+{% block body %}
+<h1 class="page-title">Bem-Vindo, {{ employee_in_session_fullname.name }}!</h1>
 
-{% block main %}
+<div class="dash">
+
+  <section class="card">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span class="card__title">Horas semanais</span>
+    </div>
+    <div class="card__inner kpi-rows">
+      <div class="kpi-row"><span>Totais:</span><strong>{{ horas_totais }}</strong></div>
+      <div class="kpi-row"><span>Restantes:</span><strong>{{ horas_restantes }}</strong></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></span>
+      <span class="card__title">Último ponto batido</span>
+    </div>
+    <div class="card__inner card__inner--center">
+      <span class="kpi--lg">{{ ultimo_ponto or 'Sem registros' }}</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.7 2.5 1.7-1 1.4-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.5 2.5-1.5"/></svg></span>
+      <span class="card__title">Salário Atual</span>
+    </div>
+    <div class="card__inner card__inner--center">
+      <span class="kpi--lg">R$:<br>{{ salario or '—' }}</span>
+    </div>
+  </section>
+
+  <section class="card dash__chart">
+    <span class="card__title card__title--sm">Horas de trabalho nas últimas : 8 Semanas</span>
+    <div class="chart-placeholder" id="grafico-horas"></div>
+  </section>
+
+  <section class="card">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+      <span class="card__title card__title--sm">Escala da Semana</span>
+    </div>
+    <ul class="escala">
+      {% for d in escala %}
+      <li class="{{ 'escala__hoje' if d.hoje }}">
+        <span>{{ d.dia }}</span>
+        <span class="escala__hora"><i class="dot dot--{{ d.cor }}"></i>{{ d.horario }}</span>
+        <span class="escala__status">{{ d.status }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <div class="kpi-row">
+      <span class="text-accent">Nº atrasos<br>mensais:</span>
+      <strong>{{ atrasos }}</strong>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="text-accent">Ocupação:</span>
+    <div class="ocupacao" style="margin-top:8px">
+      <span class="ocupacao__icone"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>
+      {{ ocupacao }}
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="text-accent">Férias</span>
+    <p class="ferias__texto">• Atualmente você possui <span class="text-accent">{{ dias_ferias }}</span> dias de férias</p>
+    <div class="ferias__acoes">
+      <a href="#" class="btn btn--sm">Solicitar agora →</a>
+      <a href="#" class="link">Política de férias</a>
+    </div>
+  </section>
+
+</div>
 {% endblock %}

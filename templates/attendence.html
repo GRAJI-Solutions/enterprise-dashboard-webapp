@@ -1,8 +1,116 @@
 {% extends "layout.html" %}
+{% set pagina = 'bater_ponto' %}
 
-{% block title %}
-Bater ponto
+{% block body %}
+<h1 class="page-title">Bater Ponto</h1>
+<p class="page-subtitle">Registre seu ponto de entrada, saída e intervalos.</p>
+
+<div class="ponto">
+
+  <section class="card ponto__registrar">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span class="card__title">Registrar Ponto</span>
+    </div>
+    <p class="ponto__sub">Clique no botão abaixo para registrar o seu ponto.</p>
+
+    <div class="relogio">
+      <span class="relogio__label">Horário atual</span>
+      <span class="relogio__hora" id="relogio-hora">--:--:--</span>
+      <span class="relogio__data" id="relogio-data"></span>
+      <span class="relogio__data" id="relogio-dia"></span>
+    </div>
+
+    <form method="post">
+      {% if proximo %}
+        <button type="submit" class="btn btn--primary">Bater ponto agora</button>
+        <p class="ponto__proximo">Próximo registro: {{ proximo }}</p>
+      {% else %}
+        <button type="button" class="btn btn--primary" disabled>Ponto do dia completo</button>
+      {% endif %}
+    </form>
+    <p class="ponto__seguro">Seu ponto registrado com segurança</p>
+  </section>
+
+  <section class="card">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h10M7 16h10"/></svg></span>
+      <span class="card__title">Resumo do Dia</span>
+    </div>
+
+    <div class="tiles">
+      <div class="tile text-green">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>
+        <span style="color:var(--text)">Entrada</span>
+        <span class="tile__valor">{{ entrada }}</span>
+      </div>
+      <div class="tile text-orange">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2"/></svg>
+        <span style="color:var(--text)">Intervalo: Início</span>
+        <span class="tile__valor">{{ inicio_intervalo }}</span>
+      </div>
+      <div class="tile text-blue">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2"/></svg>
+        <span style="color:var(--text)">Intervalo: Fim</span>
+        <span class="tile__valor">{{ fim_intervalo }}</span>
+      </div>
+      <div class="tile text-red">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        <span style="color:var(--text)">Saída</span>
+        <span class="tile__valor">{{ saida }}</span>
+      </div>
+    </div>
+
+    <div class="linha-info"><span>Jornada de hoje</span><span>{{ jornada }}</span></div>
+    <div class="linha-info"><span>Horas esperadas</span><span>{{ horas_esperadas }}</span></div>
+    <div class="linha-info">
+      <span>Saldo do dia</span>
+      <span class="{{ 'text-red' if saldo_negativo else 'text-green' }}">{{ saldo_dia }}</span>
+    </div>
+  </section>
+
+  <section class="card ponto__hist">
+    <div class="card__header">
+      <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span class="card__title">Histórico de pontos</span>
+    </div>
+    <table class="table">
+      <thead>
+        <tr><th>Data</th><th>Entrada</th><th>Intervalo</th><th>Saída</th><th>Saldo</th></tr>
+      </thead>
+      <tbody>
+        {% for h in historico %}
+        <tr>
+          <td>{{ h.data }}</td>
+          <td class="text-green">{{ h.entrada }}</td>
+          <td class="text-orange">{{ h.intervalo }}</td>
+          <td class="text-red">{{ h.saida }}</td>
+          <td class="{{ 'text-red' if h.negativo else ('' if h.sem_saldo else 'text-green') }}">{{ h.saldo }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">Nenhum registro ainda</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+</div>
 {% endblock %}
 
-{% block main %}
+{% block scripts %}
+<script>
+  (function () {
+    const hora = document.getElementById('relogio-hora');
+    const data = document.getElementById('relogio-data');
+    const dia = document.getElementById('relogio-dia');
+    function tick() {
+      const agora = new Date();
+      hora.textContent = agora.toLocaleTimeString('pt-BR', { hour12: false });
+      data.textContent = agora.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+      dia.textContent = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
 {% endblock %}

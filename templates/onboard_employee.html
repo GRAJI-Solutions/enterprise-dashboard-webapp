@@ -1,8 +1,378 @@
-{% extends "layout.html" %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Novo colaborador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/onboard_employee.css') }}">
+</head>
+<body>
 
-{% block title %}
-Cadastramento
-{% endblock %}
+{# ---------- Icons (macro) ---------- #}
+{% macro icon(name) -%}
+  {%- set paths = {
+    'user':     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    'calendar': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    'card':     '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+    'mail':     '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    'phone':    '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>',
+    'briefcase':'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+    'pin':      '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
+    'lock':     '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    'hash':     '<path d="M5 9h14M5 15h14M10 3 8 21M16 3l-2 18"/>',
+    'dollar':   '<circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.5 2.5 0 0 1 9.5 15M12 6v1.5M12 16.5V18"/>',
+    'home':     '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+    'clock':    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    'users':    '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+    'building': '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+    'edit':     '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
+    'save':     '<path d="M5 3h11l4 4v14H5Z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
+    'calcheck': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4m-7 8 2 2 4-4"/>',
+    'arrow':    '<path d="M19 12H5M11 6l-6 6 6 6"/>'
+  } -%}
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ paths[name]|safe }}</svg>
+{%- endmacro %}
 
-{% block main %}
-{% endblock %}
+{# ---------- Text field (macro) ---------- #}
+{% macro text_field(name, label, placeholder='', type='text', icon_name=None, required=True, cols='c4', extra='') -%}
+  <div class="field {{ cols }}">
+    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+    <div class="control {{ 'has-icon' if icon_name }}">
+      {% if icon_name %}{{ icon(icon_name) }}{% endif %}
+      <input id="{{ name }}" name="{{ name }}" type="{{ type }}" placeholder="{{ placeholder }}"
+             value="{{ request.form.get(name, '') }}" {{ 'required' if required }} {{ extra|safe }}>
+    </div>
+  </div>
+{%- endmacro %}
+
+{# ---------- Select field (macro): options = list of (value, label) ---------- #}
+{% macro select_field(name, label, placeholder, options, required=True, cols='c4') -%}
+  {% set current = request.form.get(name, '') %}
+  <div class="field {{ cols }}">
+    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+    <div class="control">
+      <select id="{{ name }}" name="{{ name }}" {{ 'required' if required }}>
+        <option value="" disabled hidden {{ 'selected' if not current }}>{{ placeholder }}</option>
+        {% for value, text in options %}
+          <option value="{{ value }}" {{ 'selected' if current == value|string }}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+{%- endmacro %}
+
+<div class="app">
+
+  <aside class="panel sidebar">
+    <div class="profile">
+      <div class="avatar">{{ icon('user') }}</div>
+      <div class="profile-name">{{ employee_in_session_fullname.name }} {{ employee_in_session_fullname.surname }}</div>
+    </div>
+    <nav class="nav" aria-label="Navegação principal">
+      <a href="{{ url_for('dashboard') }}">{{ icon('home') }} Dashboard</a>
+      <a href="{{ url_for('attendence') }}">{{ icon('clock') }} Bater ponto</a>
+      {% if session.get('access_level', 0) >= 1 %}
+      <a href="{{ url_for('employees') }}" class="active" aria-current="page">{{ icon('users') }} Colaboradores</a>
+      {% endif %}
+      {% if session.get('access_level', 0) >= 2 %}
+      <a href="{{ url_for('dashboard_enterprise') }}">{{ icon('building') }} Corporação</a>
+      {% endif %}
+    </nav>
+  </aside>
+
+  <main class="panel main">
+    <header class="page-head">
+      <a class="back" href="{{ url_for('employees') }}" aria-label="Voltar para colaboradores">{{ icon('arrow') }}</a>
+      <div>
+        <h1>Novo colaborador</h1>
+        <p>Preencha os dados para cadastrar um novo colaborador</p>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if error %}
+      <div class="flash error" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" autocomplete="off">
+      {# If you use Flask-WTF/CSRFProtect, uncomment: #}
+      {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
+
+      <!-- Personal data -->
+      <fieldset>
+        <legend>{{ icon('user') }} Dados pessoais</legend>
+        <div class="grid">
+          {{ text_field('full_name', 'Nome completo', 'Digite o nome completo', icon_name='user', cols='c4') }}
+          {{ text_field('birth_date', 'Data de nascimento', 'DD/MM/AAAA', type='date', icon_name='calendar', cols='c3') }}
+          {{ text_field('cpf', 'CPF', '000.000.000-00', icon_name='card', cols='c3',
+                        extra='inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Use o formato 000.000.000-00"') }}
+          {{ select_field('gender', 'Gênero', 'Selecione', [
+                ('Masculino', 'Masculino'), ('Feminino', 'Feminino'),
+                ('Outro', 'Outro'), ('Prefiro não informar', 'Prefiro não informar')], cols='c2') }}
+          {{ text_field('corporative_email', 'E-mail corporativo', 'email@exemplo.com', type='email', icon_name='mail', cols='c6') }}
+          {{ text_field('phone_number', 'Telefone', '(00) 00000-0000', type='tel', icon_name='phone', cols='c6',
+                        extra='inputmode="tel" maxlength="15"') }}
+        </div>
+      </fieldset>
+
+      <!-- Login data -->
+      <fieldset>
+        <legend>{{ icon('lock') }} Dados de acesso</legend>
+        <div class="grid">
+          {{ text_field('register_code', 'Matrícula', 'Código de registro', icon_name='hash', cols='c4') }}
+          {{ text_field('password', 'Senha provisória', 'Mínimo de 8 caracteres', type='password', icon_name='lock', cols='c4',
+                        extra='minlength="8" autocomplete="new-password"') }}
+          {{ select_field('access_level', 'Nível de acesso', 'Selecione', [
+                (0, 'Colaborador'), (1, 'Gestor'), (2, 'Administrador')], cols='c4') }}
+        </div>
+      </fieldset>
+
+      <!-- Professional data -->
+      <fieldset>
+        <legend>{{ icon('briefcase') }} Dados profissionais</legend>
+        <div class="grid">
+          {% if roles is defined %}
+            {{ select_field('role', 'Cargo', 'Selecione o cargo', roles, cols='c4') }}
+          {% else %}
+            {{ text_field('role', 'Cargo', 'Digite o cargo', cols='c4') }}
+          {% endif %}
+          {% if departments is defined %}
+            {{ select_field('department', 'Departamento', 'Selecione o departamento', departments, cols='c4') }}
+          {% else %}
+            {{ text_field('department', 'Departamento', 'Digite o departamento', cols='c4') }}
+          {% endif %}
+          {{ select_field('contract_type', 'Tipo de contrato', 'Selecione o tipo', [
+                ('CLT', 'CLT'), ('PJ', 'PJ'), ('Estágio', 'Estágio'),
+                ('Temporário', 'Temporário'), ('Aprendiz', 'Aprendiz')], cols='c4') }}
+
+          {{ text_field('admission_date', 'Data de admissão', 'DD/MM/AAAA', type='date', icon_name='calendar', cols='c3') }}
+          <div class="field c3">
+            <label for="salary_value">Salário<span class="req" aria-hidden="true">*</span></label>
+            <div class="control has-prefix">
+              <span class="prefix">R$</span>
+              <input id="salary_value" name="salary_value" type="number" step="0.01" min="0"
+                     placeholder="0,00" value="{{ request.form.get('salary_value', '') }}" required>
+            </div>
+          </div>
+          {{ select_field('weekly_workload', 'Carga horária semanal', 'Selecione', [
+                (20, '20 horas'), (30, '30 horas'), (36, '36 horas'),
+                (40, '40 horas'), (44, '44 horas')], cols='c3') }}
+          {{ select_field('work_shift', 'Turno', 'Selecione', [
+                ('Manhã', 'Manhã'), ('Tarde', 'Tarde'), ('Noite', 'Noite'),
+                ('Integral', 'Integral')], cols='c3') }}
+        </div>
+      </fieldset>
+
+      <!-- Address -->
+      <fieldset>
+        <legend>{{ icon('pin') }} Endereço</legend>
+        <div class="grid">
+          {{ text_field('cep', 'CEP', '00000-000', cols='c3',
+                        extra='inputmode="numeric" maxlength="9" pattern="\d{5}-?\d{3}" title="Use o formato 00000-000"') }}
+          {{ text_field('street', 'Endereço', 'Digite o endereço', cols='c5') }}
+          {{ text_field('number', 'Número', '000', cols='c2', extra='inputmode="numeric"') }}
+          {{ text_field('complement', 'Complemento', 'Opcional', required=False, cols='c2') }}
+
+          {{ text_field('neighborhood', 'Bairro', 'Digite o bairro', cols='c4') }}
+          {{ text_field('city', 'Cidade', 'Digite a cidade', cols='c4') }}
+          {% set ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+          {% set uf_opts = [] %}{% for u in ufs %}{% set _ = uf_opts.append((u, u)) %}{% endfor %}
+          {{ select_field('state', 'Estado', 'Selecione', uf_opts, cols='c4') }}
+        </div>
+      </fieldset>
+
+      <!-- Weekly schedule -->
+      <fieldset>
+        <legend>{{ icon('calcheck') }} Escala semanal</legend>
+        <p class="schedule-hint">Selecione os dias ativos e preencha os horários. Pelo menos um dia deve ser selecionado.</p>
+
+{% set days = [('monday', 'Segunda-feira'), ('tuesday', 'Terça-feira'), ('wednesday', 'Quarta-feira'),
+               ('thursday', 'Quinta-feira'), ('friday', 'Sexta-feira'), ('saturday', 'Sábado'), ('sunday', 'Domingo')] %}
+{% set time_fields = [('hora_entrada', 'Hora de entrada', '08:00'), ('inicio_intervalo', 'Início do intervalo', '12:00'),
+                      ('fim_intervalo', 'Fim do intervalo', '13:00'), ('hora_saida', 'Hora de saída', '18:00')] %}
+
+{% set rows = {} %}
+{% if schedule is defined and schedule %}
+  {% if schedule is mapping %}
+    {% for k, v in schedule.items() %}{% set _ = rows.update({k: v}) %}{% endfor %}
+  {% else %}
+    {% for r in schedule %}{% set _ = rows.update({r['dia_semana']: r}) %}{% endfor %}
+  {% endif %}
+{% endif %}
+{% set has_schedule = rows|length > 0 %}
+
+<div class="schedule" id="schedule-root">
+  <div id="schedule-error" class="flash error" role="alert" hidden>Selecione pelo menos um dia de trabalho.</div>
+
+  <div class="schedule-grid">
+    {% for key, label in days %}
+      {% set row = rows.get(key) %}
+      {% if has_schedule %}
+        {% set is_on = row is not none and row['hora_entrada'] %}
+      {% else %}
+        {% set is_on = key in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] %}
+      {% endif %}
+      <section class="day-card {{ 'is-on' if is_on }}" data-day="{{ key }}">
+        <div class="day-head">
+          <span class="day-title">{{ icon('calendar') }} {{ label }}</span>
+          <label class="switch">
+            <input type="checkbox" name="escala[{{ key }}][ativo]" value="on" {{ 'checked' if is_on }}>
+            <span class="track"></span>
+            <span>Ativo</span>
+          </label>
+        </div>
+        <div class="day-body">
+          {% for field, text, default in time_fields %}
+            {% if is_on and row %}
+              {% set value = (row[field] or '')[:5] %}
+            {% elif is_on %}
+              {% set value = default %}
+            {% else %}
+              {% set value = '' %}
+            {% endif %}
+            <div class="time-row">
+              <label for="{{ key }}_{{ field }}">{{ icon('clock') }} {{ text }}</label>
+              <input type="time" id="{{ key }}_{{ field }}" name="escala[{{ key }}][{{ field }}]"
+                     value="{{ value }}" data-default="{{ default }}" data-field="{{ field }}" {{ '' if is_on else 'disabled' }}>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  (function () {
+    const root = document.getElementById('schedule-root');
+    const form = root.closest('form');
+    const errorBox = document.getElementById('schedule-error');
+    const cards = root.querySelectorAll('.day-card');
+
+    function syncCard(card) {
+      const check = card.querySelector('input[type="checkbox"]');
+      card.classList.toggle('is-on', check.checked);
+      card.querySelectorAll('input[type="time"]').forEach(input => {
+        input.disabled = check.disabled || !check.checked;
+      });
+    }
+    window.syncSchedule = () => cards.forEach(syncCard);
+
+    cards.forEach(card => {
+      const check = card.querySelector('input[type="checkbox"]');
+      check.addEventListener('change', () => {
+        syncCard(card);
+        if (check.checked) {
+          card.querySelectorAll('input[type="time"]').forEach(input => {
+            if (!input.value) input.value = input.dataset.default;
+          });
+          errorBox.hidden = true;
+        }
+      });
+    });
+
+    form.addEventListener('submit', event => {
+      const active = [...cards].filter(card => card.querySelector('input[type="checkbox"]').checked);
+
+      if (active.length === 0) {
+        event.preventDefault();
+        errorBox.hidden = false;
+        errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      for (const card of active) {
+        const get = field => card.querySelector(`[data-field="${field}"]`);
+        const clockIn = get('hora_entrada'), clockOut = get('hora_saida');
+        const breakStart = get('inicio_intervalo'), breakEnd = get('fim_intervalo');
+        [clockIn, clockOut, breakStart, breakEnd].forEach(input => {
+          input.setCustomValidity('');
+          input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
+        });
+
+        let problem = null;
+        if (!clockIn.value) problem = [clockIn, 'Informe a hora de entrada.'];
+        else if (!clockOut.value) problem = [clockOut, 'Informe a hora de saída.'];
+        else if (clockOut.value <= clockIn.value) problem = [clockOut, 'A saída deve ser depois da entrada.'];
+        else if ((breakStart.value && !breakEnd.value) || (!breakStart.value && breakEnd.value)) {
+          problem = [breakEnd, 'Informe o início e o fim do intervalo.'];
+        } else if (breakStart.value && breakEnd.value <= breakStart.value) {
+          problem = [breakEnd, 'O fim do intervalo deve ser depois do início.'];
+        }
+
+        if (problem) {
+          event.preventDefault();
+          problem[0].setCustomValidity(problem[1]);
+          problem[0].reportValidity();
+          return;
+        }
+      }
+    });
+
+    window.syncSchedule();
+  })();
+</script>
+      </fieldset>
+
+      <div class="actions">
+        <a class="btn" href="{{ url_for('employees') }}">Cancelar</a>
+        <button type="submit" class="btn primary">Cadastrar colaborador</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+  // ---------- Input masks ----------
+  const onlyDigits = v => v.replace(/\D/g, '');
+
+  function mask(el, fn) {
+    if (!el) return;
+    el.addEventListener('input', () => { el.value = fn(onlyDigits(el.value)); });
+    if (el.value) el.value = fn(onlyDigits(el.value));
+  }
+
+  mask(document.getElementById('cpf'), d =>
+    d.slice(0, 11)
+     .replace(/(\d{3})(\d)/, '$1.$2')
+     .replace(/(\d{3})(\d)/, '$1.$2')
+     .replace(/(\d{3})(\d{1,2})$/, '$1-$2'));
+
+  mask(document.getElementById('cep'), d =>
+    d.slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'));
+
+  mask(document.getElementById('phone_number'), d => {
+    d = d.slice(0, 11);
+    if (d.length <= 2) return d ? '(' + d : '';
+    if (d.length <= 6) return d.replace(/(\d{2})(\d+)/, '($1) $2');
+    if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d+)/, '($1) $2-$3');
+    return d.replace(/(\d{2})(\d{5})(\d+)/, '($1) $2-$3');
+  });
+
+  // ---------- Address autofill by CEP (ViaCEP) ----------
+  const cepInput = document.getElementById('cep');
+  cepInput.addEventListener('blur', async () => {
+    const cep = onlyDigits(cepInput.value);
+    if (cep.length !== 8) return;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await res.json();
+      if (data.erro) return;
+      document.getElementById('street').value = data.logradouro || '';
+      document.getElementById('neighborhood').value = data.bairro || '';
+      document.getElementById('city').value = data.localidade || '';
+      document.getElementById('state').value = data.uf || '';
+      document.getElementById('number').focus();
+    } catch (e) { /* offline: the user fills the address manually */ }
+  });
+</script>
+</body>
+</html>
