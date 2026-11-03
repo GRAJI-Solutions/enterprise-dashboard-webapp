@@ -1,8 +1,104 @@
 {% extends "layout.html" %}
 
-{% block title %}
-Colaboradores
+{% block title %}Colaboradores{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employee.css') }}?v=8-width">
+
+<style>
+@media (min-width: 761px) {
+  #employees-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #employees-page .employees__header {
+    flex-shrink: 0;
+  }
+
+  #employees-page .employees__list {
+    flex: 1 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}
+</style>
 {% endblock %}
 
+{% macro format_phone(value) -%}
+  {%- set original = value | string | trim -%}
+  {%- set digits = original | replace(' ', '') | replace('(', '') | replace(')', '') | replace('-', '') -%}
+  {%- if digits.isdigit() and digits | length == 11 -%}
+    ({{ digits[:2] }}) {{ digits[2:7] }}-{{ digits[7:] }}
+  {%- elif digits.isdigit() and digits | length == 10 -%}
+    ({{ digits[:2] }}) {{ digits[2:6] }}-{{ digits[6:] }}
+  {%- else -%}
+    {{ original }}
+  {%- endif -%}
+{%- endmacro %}
+
 {% block main %}
+<section class="employees" id="employees-page" aria-labelledby="employees-title">
+  <header class="employees__header">
+    <h1 class="employees__title" id="employees-title">Colaboradores</h1>
+
+    <a class="employees__add" href="{{ url_for('onboard_employee') }}">
+      <svg viewBox="0 0 40 40" aria-hidden="true" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="17" cy="11" r="7" stroke="currentColor" stroke-width="3"/>
+        <path d="M3 36v-3c0-7 5-10 14-10s14 3 14 10v3M30 18h8m-4-4v8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      Adicionar Colaborador
+    </a>
+  </header>
+
+  <div class="employees__list" role="region" aria-label="Lista de colaboradores em ordem alfabética" tabindex="0">
+    <table class="employees__table" aria-label="Colaboradores em ordem alfabética: nome, telefone, e-mail e turno">
+      <colgroup>
+        <col class="employees__col-name">
+        <col class="employees__col-phone">
+        <col class="employees__col-email">
+        <col class="employees__col-shift">
+      </colgroup>
+
+      <thead>
+        <tr>
+          <th scope="col">Nome</th>
+          <th scope="col">Telefone</th>
+          <th scope="col">E-mail</th>
+          <th scope="col">Turno</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for employee in employees %}
+        <tr class="employees__row employees__row--linked">
+          <td data-label="Nome">
+            <a class="employees__profile-link" href="{{ url_for('employee_details', employee_id=employee['id_colaborador']) }}" aria-label="Ver colaborador {{ employee['nome_completo'] }}">{{ employee['nome_completo'] }}</a>
+          </td>
+
+          <td data-label="Telefone">
+            {% if employee['numero_celular'] %}
+              {% for number in (employee['numero_celular'] | string).split(' / ') %}
+              <span class="employees__phone">{{ format_phone(number) }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="employees__missing">Não informado</span>
+            {% endif %}
+          </td>
+
+          <td data-label="E-mail">{{ employee['email_corporativo'] or 'Não informado' }}</td>
+          <td data-label="Turno">{{ employee['turno'] or 'Não informado' }}</td>
+        </tr>
+        {% else %}
+        <tr class="employees__empty">
+          <td colspan="4">Nenhum colaborador encontrado.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}
