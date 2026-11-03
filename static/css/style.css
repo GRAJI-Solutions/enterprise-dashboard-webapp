@@ -493,3 +493,285 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* Páginas internas (Dashboard, Bater ponto, Corporação) */
+.ico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.card__title { font-size: 1.05rem; font-weight: 600; }
+.card__title--sm { font-size: .95rem; }
+.card__inner--center { display: grid; place-items: center; min-height: 120px; text-align: center; }
+.kpi--lg { font-size: 2rem; font-weight: 800; line-height: 1.25; }
+
+/* Linha "rótulo + número" (horas semanais, atrasos) */
+.kpi-rows { display: flex; flex-direction: column; gap: 14px; }
+.kpi-row { display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
+.kpi-row span { font-size: 1.05rem; }
+.kpi-row strong { font-size: 2.3rem; font-weight: 800; }
+
+/* Placeholder dos gráficos (a gente preenche depois) */
+.chart-placeholder {
+    min-height: 260px; height: 100%;
+    border: 1px dashed rgba(255, 255, 255, .2);
+    border-radius: var(--radius-sm);
+    background: rgba(10, 12, 22, .4);
+}
+
+/* ---------- Dashboard do funcionário ---------- */
+.dash { display: grid; grid-template-columns: 1.1fr 1.1fr 1fr; gap: var(--gap); }
+.dash__chart { grid-column: span 2; display: flex; flex-direction: column; }
+.dash__chart .chart-placeholder { flex: 1; margin-top: 10px; }
+
+.escala { list-style: none; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); overflow: hidden; }
+.escala li {
+    display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 8px;
+    padding: 9px 12px; font-size: .85rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+.escala li:last-child { border-bottom: 0; }
+.escala__hora { display: flex; align-items: center; gap: 8px; }
+.escala__status { color: var(--text-soft); }
+
+.ocupacao { display: flex; align-items: center; gap: 12px; font-size: 1.3rem; font-weight: 700; }
+.ocupacao__icone { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.15); display: grid; place-items: center; }
+.ferias__texto { font-size: .8rem; font-weight: 600; margin: 8px 0 12px; }
+.ferias__acoes { display: flex; justify-content: space-between; align-items: center; font-size: .75rem; }
+.ferias__acoes a.link { text-decoration: underline; font-weight: 700; }
+.btn--sm { padding: 5px 12px; font-size: .75rem; border-radius: 8px; }
+
+/* ---------- Bater ponto ---------- */
+.ponto { display: grid; grid-template-columns: 1fr 1.25fr; gap: var(--gap); }
+.ponto__hist { grid-column: 1 / -1; }
+.ponto__registrar { text-align: center; }
+.ponto__sub { font-size: .8rem; color: var(--text-soft); text-align: left; margin: -6px 0 0 44px; }
+
+.relogio {
+    width: 180px; height: 180px; margin: 20px auto; border-radius: 50%;
+    display: grid; place-content: center; text-align: center; gap: 2px;
+    border: 4px solid transparent;
+    background: linear-gradient(#14172a, #14172a) padding-box,
+                linear-gradient(135deg, #2a14ff, #a020f0) border-box;
+    box-shadow: 0 0 22px rgba(90, 40, 255, .45);
+}
+.relogio__label { font-size: .75rem; color: var(--text-soft); }
+.relogio__hora { font-size: 1.7rem; font-weight: 600; }
+.relogio__data { font-size: .65rem; color: var(--text-soft); }
+.ponto__seguro { margin-top: 12px; font-size: .75rem; color: var(--text-soft); }
+
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.tile {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 6px; font-size: .8rem; text-align: center;
+    background: rgba(10, 12, 22, .5); border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+}
+.tile .ico { width: 26px; height: 26px; }
+.tile__valor { font-size: 1.4rem; font-weight: 700; }
+
+.linha-info {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; padding: 12px 16px; font-size: .9rem;
+    background: rgba(10, 12, 22, .5); border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+}
+
+/* ---------- Corporação ---------- */
+.corp { display: grid; grid-template-columns: 2.2fr 1fr; gap: var(--gap); margin-bottom: var(--gap); }
+.corp .chart-placeholder { min-height: 230px; margin-top: 10px; }
+.legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .7rem; }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.legenda i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+@media (max-width: 1100px) {
+    .dash, .corp, .ponto { grid-template-columns: 1fr; }
+    .dash__chart { grid-column: auto; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+}
+
+.escala li.escala__hoje { background: rgba(255, 255, 255, 0.07); }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.ponto__proximo { margin-top: 10px; font-size: 0.8rem; color: var(--text-soft); }
+
+
+/* ==========================================
+   REFINAMENTO - BATER PONTO
+   ========================================== */
+
+/* Impede que o resumo estique até a altura
+   do card que contém o relógio */
+.ponto > .card:nth-child(2) {
+    align-self: start;
+}
+
+/* Mantém os cards do resumo organizados */
+.ponto .tiles {
+    align-items: stretch;
+}
+
+/* Melhora o espaçamento das informações */
+.ponto .linha-info {
+    min-height: 42px;
+    margin-top: 10px;
+}
+
+/* Mantém o histórico ocupando toda a largura */
+.ponto__hist {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+/* Ajustes para telas menores */
+@media (max-width: 1100px) {
+    .ponto {
+        grid-template-columns: 1fr;
+    }
+
+    .ponto > .card:nth-child(2) {
+        align-self: stretch;
+    }
+}
+
+@media (min-width: 1101px) {
+
+    .ponto {
+        align-items: stretch;
+    }
+
+    /* Card Resumo do Dia */
+    .ponto > .card:nth-child(2) {
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    /* Cabeçalho */
+    .ponto > .card:nth-child(2) .card__header {
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+
+    /* Os quatro cartões crescem verticalmente */
+    .ponto .tiles {
+        flex: 1;
+        min-height: 150px;
+        align-items: stretch;
+    }
+
+    .ponto .tile {
+        justify-content: center;
+        gap: 12px;
+        padding: 18px 8px;
+    }
+
+    .ponto .tile .ico {
+        width: 28px;
+        height: 28px;
+    }
+
+    .ponto .tile__valor {
+        font-size: 1.5rem;
+    }
+
+    /* Linhas de informações maiores */
+    .ponto > .card:nth-child(2) .linha-info {
+        min-height: 48px;
+        margin-top: 0;
+        padding: 12px 16px;
+        flex-shrink: 0;
+    }
+}
+
+
+/* ==========================================
+   REFINAMENTO - CORPORAÇÃO
+   ========================================== */
+
+.corp {
+    align-items: start;
+}
+
+/* Permite que o card acomode sua legenda */
+.corp > .card {
+    min-width: 0;
+    height: auto;
+}
+
+/* Reserva o espaço dos gráficos futuros */
+.corp .chart-placeholder {
+    height: 230px;
+    min-height: 230px;
+}
+
+/* Organiza as informações dos departamentos */
+.corp .legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 14px;
+    line-height: 1.5;
+}
+
+/* Evita que o texto invada outros cards */
+.corp .legenda span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+/* Separa os indicadores da área superior */
+.corp + .grid {
+    margin-top: 18px;
+}
+
+.corp + .grid > .card {
+    min-width: 0;
+}
+
+@media (min-width: 1101px) {
+
+    .corp {
+        grid-template-columns: 2.2fr 1fr;
+        align-items: stretch;
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .corp > .card {
+        display: flex;
+        flex-direction: column;
+        min-height: 350px;
+    }
+
+    .corp .chart-placeholder {
+        height: auto;
+        min-height: 220px;
+        flex: 1;
+    }
+
+    .corp .legenda {
+        flex-shrink: 0;
+        margin-top: 12px;
+    }
+
+    .corp + .grid {
+        margin-top: 0;
+        align-items: stretch;
+    }
+
+    .corp + .grid > .card {
+        display: flex;
+        flex-direction: column;
+        min-height: 245px;
+    }
+
+    .corp + .grid .card__inner {
+        flex: 1;
+        display: grid;
+        place-items: center;
+        min-height: 150px;
+    }
+
+    .corp + .grid .kpi,
+    .corp + .grid .kpi--lg {
+        font-size: clamp(2rem, 2.5vw, 2.8rem);
+    }
+}
