@@ -1,8 +1,281 @@
-{% extends "layout.html" %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detalhes do colaborador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/employee_details.css') }}">
+</head>
+<body>
 
-{% block title %}
-Funcionário
-{% endblock %}
+{# ---------- Icons (macro) ---------- #}
+{% macro icon(name) -%}
+  {%- set paths = {
+    'user':     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    'calendar': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    'card':     '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+    'mail':     '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    'phone':    '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>',
+    'briefcase':'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+    'pin':      '<path d="M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="9" r="2.5"/>',
+    'lock':     '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    'hash':     '<path d="M5 9h14M5 15h14M10 3 8 21M16 3l-2 18"/>',
+    'dollar':   '<circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.5 2.5 0 0 1 9.5 15M12 6v1.5M12 16.5V18"/>',
+    'home':     '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+    'clock':    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    'users':    '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+    'building': '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+    'edit':     '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
+    'save':     '<path d="M5 3h11l4 4v14H5Z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
+    'calcheck': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4m-7 8 2 2 4-4"/>',
+    'arrow':    '<path d="M19 12H5M11 6l-6 6 6 6"/>'
+  } -%}
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ paths[name]|safe }}</svg>
+{%- endmacro %}
 
-{% block main %}
-{% endblock %}
+{# ---------- Current value: submitted form (on error) > database data ---------- #}
+{% macro val(name) -%}
+  {%- if request.method == 'POST' and name in request.form -%}{{ request.form.get(name) }}
+  {%- else -%}{%- set v = (employee|default({})).get(name) -%}{{ '' if v is none else v }}{%- endif -%}
+{%- endmacro %}
+
+{% macro text_field(name, label, placeholder='', type='text', icon_name=None, required=True, cols='c4', extra='', note='') -%}
+  <div class="field {{ cols }}">
+    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+    <div class="control {{ 'has-icon' if icon_name }}">
+      {% if icon_name %}{{ icon(icon_name) }}{% endif %}
+      <input id="{{ name }}" name="{{ name }}" type="{{ type }}" placeholder="{{ placeholder }}"
+             value="{{ val(name) }}" {{ 'required' if required }} {{ extra|safe }}>
+    </div>
+    {% if note %}<p class="note">{{ note }}</p>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro select_field(name, label, placeholder, options, required=True, cols='c4') -%}
+  {% set current = val(name)|string|trim %}
+  {% set known = options|map('first')|map('string')|list %}
+  <div class="field {{ cols }}">
+    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+    <div class="control">
+      <select id="{{ name }}" name="{{ name }}" {{ 'required' if required }}>
+        <option value="" disabled hidden {{ 'selected' if not current }}>{{ placeholder }}</option>
+        {% if current and current not in known %}
+          <option value="{{ current }}" selected>{{ current }}</option>
+        {% endif %}
+        {% for value, text in options %}
+          <option value="{{ value }}" {{ 'selected' if current == value|string }}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% set shown_name = (val('full_name')|trim) or 'Colaborador' %}
+{% set parts = shown_name.split() %}
+
+<div class="app">
+
+  <aside class="panel sidebar">
+    <div class="profile">
+      <div class="avatar">{{ icon('user') }}</div>
+      <div class="profile-name">{{ employee_in_session_fullname.name }} {{ employee_in_session_fullname.surname }}</div>
+    </div>
+    <nav class="nav" aria-label="Navegação principal">
+      <a href="{{ url_for('dashboard') }}">{{ icon('home') }} Dashboard</a>
+      <a href="{{ url_for('attendence') }}">{{ icon('clock') }} Bater ponto</a>
+      {% if session.get('access_level', 0) >= 1 %}
+      <a href="{{ url_for('employees') }}" class="active" aria-current="page">{{ icon('users') }} Colaboradores</a>
+      {% endif %}
+      {% if session.get('access_level', 0) >= 2 %}
+      <a href="{{ url_for('dashboard_enterprise') }}">{{ icon('building') }} Corporação</a>
+      {% endif %}
+    </nav>
+  </aside>
+
+  <main class="panel main">
+    <header class="page-head">
+      <a class="back" href="{{ url_for('employees') }}" aria-label="Voltar para colaboradores">{{ icon('arrow') }}</a>
+      <div>
+        <h1>Detalhes do colaborador</h1>
+        <p>Consulte os dados cadastrais. Use “Editar dados” para fazer alterações.</p>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}" role="alert">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% if error %}
+      <div class="flash error" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <section class="summary">
+      <div class="initials" aria-hidden="true">{{ (parts[0][0] ~ (parts[-1][0] if parts|length > 1 else ''))|upper }}</div>
+      <div class="summary-info">
+        <div class="summary-name">{{ shown_name }}</div>
+        <div class="summary-meta">
+          {{ val('role') or 'Cargo não informado' }}{% if val('department')|trim %} • {{ val('department') }}{% endif %}
+          {% if val('register_code')|trim %} • Matrícula {{ val('register_code') }}{% endif %}
+        </div>
+      </div>
+      <div class="summary-actions">
+        <button type="button" class="btn primary" id="btn-edit">{{ icon('edit') }} Editar dados</button>
+      </div>
+    </section>
+
+    <form method="POST" id="details-form" autocomplete="off">
+      {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
+
+      <fieldset>
+        <legend>{{ icon('user') }} Dados pessoais</legend>
+        <div class="grid">
+          {{ text_field('full_name', 'Nome completo', 'Digite o nome completo', icon_name='user', cols='c4') }}
+          {{ text_field('birth_date', 'Data de nascimento', '', type='date', icon_name='calendar', cols='c3') }}
+          {{ text_field('cpf', 'CPF', '000.000.000-00', icon_name='card', cols='c3',
+                        extra='inputmode="numeric" maxlength="14" pattern="\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}" title="Use o formato 000.000.000-00"') }}
+          {{ select_field('gender', 'Gênero', 'Selecione', [
+                ('Masculino', 'Masculino'), ('Feminino', 'Feminino'),
+                ('Outro', 'Outro'), ('Prefiro não informar', 'Prefiro não informar')], cols='c2') }}
+          {{ text_field('corporative_email', 'E-mail corporativo', 'email@exemplo.com', type='email', icon_name='mail', cols='c6') }}
+          {{ text_field('phone_number', 'Telefone', '(00) 00000-0000', type='tel', icon_name='phone', cols='c6',
+                        extra='inputmode="tel" maxlength="15"') }}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{ icon('lock') }} Dados de acesso</legend>
+        <div class="grid">
+          {{ text_field('register_code', 'Matrícula', 'Código de registro', icon_name='hash', cols='c4') }}
+          <div class="field c4">
+            <label for="password">Nova senha</label>
+            <div class="control has-icon">
+              {{ icon('lock') }}
+              <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="new-password">
+            </div>
+            <p class="note">Digite apenas se quiser trocar a senha.</p>
+          </div>
+          {{ select_field('access_level', 'Nível de acesso', 'Selecione', [
+                (0, 'Colaborador'), (1, 'Gestor'), (2, 'Administrador')], cols='c4') }}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{ icon('briefcase') }} Dados profissionais</legend>
+        <div class="grid">
+          {% if roles is defined %}
+            {{ select_field('role', 'Cargo', 'Selecione o cargo', roles, cols='c4') }}
+          {% else %}
+            {{ text_field('role', 'Cargo', 'Digite o cargo', cols='c4') }}
+          {% endif %}
+          {% if departments is defined %}
+            {{ select_field('department', 'Departamento', 'Selecione o departamento', departments, cols='c4') }}
+          {% else %}
+            {{ text_field('department', 'Departamento', 'Digite o departamento', cols='c4') }}
+          {% endif %}
+          {{ select_field('contract_type', 'Tipo de contrato', 'Selecione o tipo', [
+                ('CLT', 'CLT'), ('PJ', 'PJ'), ('Estágio', 'Estágio'),
+                ('Temporário', 'Temporário'), ('Aprendiz', 'Aprendiz')], cols='c4') }}
+
+          {{ text_field('admission_date', 'Data de admissão', '', type='date', icon_name='calendar', cols='c3') }}
+          <div class="field c3">
+            <label for="salary_value">Salário<span class="req" aria-hidden="true">*</span></label>
+            <div class="control has-prefix">
+              <span class="prefix">R$</span>
+              <input id="salary_value" name="salary_value" type="number" step="0.01" min="0"
+                     placeholder="0,00" value="{{ val('salary_value') }}" required>
+            </div>
+          </div>
+          {{ select_field('weekly_workload', 'Carga horária semanal', 'Selecione', [
+                (20, '20 horas'), (30, '30 horas'), (36, '36 horas'),
+                (40, '40 horas'), (44, '44 horas')], cols='c3') }}
+          {{ select_field('work_shift', 'Turno', 'Selecione', [
+                ('Manhã', 'Manhã'), ('Tarde', 'Tarde'), ('Noite', 'Noite'),
+                ('Integral', 'Integral')], cols='c3') }}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{ icon('pin') }} Endereço</legend>
+        <div class="grid">
+          {{ text_field('cep', 'CEP', '00000-000', cols='c3',
+                        extra='inputmode="numeric" maxlength="9" pattern="\\d{5}-?\\d{3}" title="Use o formato 00000-000"') }}
+          {{ text_field('street', 'Endereço', 'Digite o endereço', cols='c5') }}
+          {{ text_field('number', 'Número', '000', cols='c2', extra='inputmode="numeric"') }}
+          {{ text_field('complement', 'Complemento', 'Opcional', required=False, cols='c2') }}
+
+          {{ text_field('neighborhood', 'Bairro', 'Digite o bairro', cols='c4') }}
+          {{ text_field('city', 'Cidade', 'Digite a cidade', cols='c4') }}
+          {% set ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+          {% set uf_opts = [] %}{% for u in ufs %}{% set _ = uf_opts.append((u, u)) %}{% endfor %}
+          {{ select_field('state', 'Estado', 'Selecione', uf_opts, cols='c4') }}
+        </div>
+      </fieldset>
+
+      <div class="actions" id="edit-actions" hidden>
+        <button type="button" class="btn" id="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn primary">{{ icon('save') }} Salvar alterações</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+  const form = document.getElementById('details-form');
+  const btnEdit = document.getElementById('btn-edit');
+  const btnCancel = document.getElementById('btn-cancel');
+  const actions = document.getElementById('edit-actions');
+  const fields = form.querySelectorAll('input, select');
+
+  function setEditing(on) {
+    fields.forEach(f => { f.disabled = !on; });
+    btnEdit.hidden = on;
+    actions.hidden = !on;
+  }
+
+  btnEdit.addEventListener('click', () => { setEditing(true); document.getElementById('full_name').focus(); });
+  btnCancel.addEventListener('click', () => { form.reset(); setEditing(false); });
+
+  // If the server re-rendered the form after a POST (validation error), stay in edit mode
+  setEditing({{ 'true' if request.method == 'POST' else 'false' }});
+
+  // ---------- Input masks ----------
+  const onlyDigits = v => v.replace(/\D/g, '');
+  function mask(el, fn) {
+    if (!el) return;
+    el.addEventListener('input', () => { el.value = fn(onlyDigits(el.value)); });
+    if (el.value) el.value = fn(onlyDigits(el.value));
+  }
+  mask(document.getElementById('cpf'), d =>
+    d.slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'));
+  mask(document.getElementById('cep'), d => d.slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'));
+  mask(document.getElementById('phone_number'), d => {
+    d = d.slice(0, 11);
+    if (d.length <= 2) return d ? '(' + d : '';
+    if (d.length <= 6) return d.replace(/(\d{2})(\d+)/, '($1) $2');
+    if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d+)/, '($1) $2-$3');
+    return d.replace(/(\d{2})(\d{5})(\d+)/, '($1) $2-$3');
+  });
+
+  // ---------- Address autofill by CEP (only while editing, when the CEP changes) ----------
+  const cepInput = document.getElementById('cep');
+  cepInput.addEventListener('change', async () => {
+    const cep = onlyDigits(cepInput.value);
+    if (cep.length !== 8) return;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await res.json();
+      if (data.erro) return;
+      document.getElementById('street').value = data.logradouro || '';
+      document.getElementById('neighborhood').value = data.bairro || '';
+      document.getElementById('city').value = data.localidade || '';
+      document.getElementById('state').value = data.uf || '';
+      document.getElementById('number').focus();
+    } catch (err) { /* the user fills the address manually */ }
+  });
+</script>
+</body>
+</html>
