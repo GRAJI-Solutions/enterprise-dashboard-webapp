@@ -1,17 +1,14 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Detalhes do colaborador</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/employee_details.css') }}">
-</head>
-<body>
+{% extends "layout.html" %}
+{% set pagina = 'colaboradores' %}
 
-{# ---------- Icons (macro) ---------- #}
+{% block title %}Detalhes do colaborador | Graji Solutions{% endblock %}
+
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/employee_details.css') }}">
+{% endblock %}
+
+{% block main %}
 {% macro icon(name) -%}
   {%- set paths = {
     'user':     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
@@ -33,249 +30,213 @@
     'calcheck': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4m-7 8 2 2 4-4"/>',
     'arrow':    '<path d="M19 12H5M11 6l-6 6 6 6"/>'
   } -%}
-  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ paths[name]|safe }}</svg>
+  <svg class="employee-icon" viewBox="0 0 24 24" aria-hidden="true">{{ paths[name]|safe }}</svg>
 {%- endmacro %}
 
-{# ---------- Current value: submitted form (on error) > database data ---------- #}
-{% macro val(name) -%}
-  {%- if request.method == 'POST' and name in request.form -%}{{ request.form.get(name) }}
-  {%- else -%}{%- set v = (employee|default({})).get(name) -%}{{ '' if v is none else v }}{%- endif -%}
-{%- endmacro %}
+{% set field_icons = {
+  'full_name': 'user', 'birth_date': 'calendar', 'cpf': 'card', 'gender': 'user',
+  'corporative_email': 'mail', 'phone_number': 'phone', 'register_code': 'hash',
+  'password': 'lock', 'access_level': 'lock', 'role': 'briefcase',
+  'department': 'building', 'contract_type': 'briefcase', 'admission_date': 'calendar',
+  'salary_value': 'dollar', 'weekly_workload': 'clock', 'work_shift': 'clock',
+  'cep': 'pin', 'street': 'home', 'number': 'hash', 'complement': 'home',
+  'neighborhood': 'pin', 'city': 'building', 'state': 'pin'
+} %}
 
-{% macro text_field(name, label, placeholder='', type='text', icon_name=None, required=True, cols='c4', extra='', note='') -%}
-  <div class="field {{ cols }}">
-    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
-    <div class="control {{ 'has-icon' if icon_name }}">
-      {% if icon_name %}{{ icon(icon_name) }}{% endif %}
-      <input id="{{ name }}" name="{{ name }}" type="{{ type }}" placeholder="{{ placeholder }}"
-             value="{{ val(name) }}" {{ 'required' if required }} {{ extra|safe }}>
+{# Map the database columns supplied by app.py to its POST field names. #}
+{% set field_names = {
+  'register_code': 'registro', 'access_level': 'nivel_acesso',
+  'role': 'cargo', 'contract_type': 'contrato', 'corporative_email': 'email_corporativo',
+  'work_shift': 'turno', 'weekly_workload': 'carga_horaria_semanal_contrato',
+  'department': 'departamento', 'admission_date': 'data_admissao',
+  'cpf': 'cpf', 'full_name': 'nome_completo', 'gender': 'genero', 'birth_date': 'data_nascimento',
+  'phone_number': 'numero_celular', 'cep': 'cep', 'state': 'estado', 'city': 'cidade',
+  'neighborhood': 'bairro', 'street': 'rua', 'number': 'numero',
+  'complement': 'complemento', 'salary_value': 'valor'
+} %}
+{% set values = {} %}
+{% for name, column in field_names.items() %}
+  {% set _ = values.update({name: employee_info.get(column)}) %}
+{% endfor %}
+{% if request.method == 'POST' %}{% set values = request.form %}{% endif %}
+{% set is_editing = request.args.get('edit') == '1' or request.method == 'POST' %}
+
+{% macro text_field(name, label, placeholder='', type='text', cols='', required=true, note='', icon_name=none) -%}
+  {% set current = values.get(name, '') %}
+  {% set field_icon = icon_name or field_icons.get(name) %}
+  <div class="form-field {{ cols }}">
+    <label for="{{ name }}">{{ label }}</label>
+    <div class="employee-control{% if field_icon %} employee-control--icon{% endif %}">
+      {% if field_icon %}{{ icon(field_icon) }}{% endif %}
+      <input id="{{ name }}" name="{{ name }}" type="{{ type }}"
+           value="{{ '' if current is none else current }}" placeholder="{{ placeholder }}"
+           {% if required %}required{% endif %}
+           {% if note %}aria-describedby="{{ name }}-help"{% endif %}
+           {% for attribute, value in kwargs.items() %}{{ attribute }}="{{ value }}" {% endfor %}>
     </div>
-    {% if note %}<p class="note">{{ note }}</p>{% endif %}
+    {% if note %}<small id="{{ name }}-help" class="field-note">{{ note }}</small>{% endif %}
   </div>
 {%- endmacro %}
 
-{% macro select_field(name, label, placeholder, options, required=True, cols='c4') -%}
-  {% set current = val(name)|string|trim %}
+{% macro select_field(name, label, options, placeholder='Selecione', cols='') -%}
+  {% set field_icon = field_icons.get(name) %}
+  {% set original = values.get(name) %}
+  {% set current = '' if original is none else original|string %}
   {% set known = options|map('first')|map('string')|list %}
-  <div class="field {{ cols }}">
-    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
-    <div class="control">
-      <select id="{{ name }}" name="{{ name }}" {{ 'required' if required }}>
-        <option value="" disabled hidden {{ 'selected' if not current }}>{{ placeholder }}</option>
-        {% if current and current not in known %}
-          <option value="{{ current }}" selected>{{ current }}</option>
-        {% endif %}
-        {% for value, text in options %}
-          <option value="{{ value }}" {{ 'selected' if current == value|string }}>{{ text }}</option>
-        {% endfor %}
+  <div class="form-field {{ cols }}">
+    <label for="{{ name }}">{{ label }}</label>
+    <div class="employee-control employee-control--select{% if field_icon %} employee-control--icon{% endif %}">
+      {% if field_icon %}{{ icon(field_icon) }}{% endif %}
+      <select id="{{ name }}" name="{{ name }}" required>
+      <option value="" disabled {% if not current %}selected{% endif %}>{{ placeholder }}</option>
+      {% if current and current not in known %}<option value="{{ current }}" selected>{{ current }}</option>{% endif %}
+      {% for value, text in options %}
+        <option value="{{ value }}" {% if current == value|string %}selected{% endif %}>{{ text }}</option>
+      {% endfor %}
       </select>
     </div>
   </div>
 {%- endmacro %}
 
-{% set shown_name = (val('full_name')|trim) or 'Colaborador' %}
-{% set parts = shown_name.split() %}
-
-<div class="app">
-
-  <aside class="panel sidebar">
-    <div class="profile">
-      <div class="avatar">{{ icon('user') }}</div>
-      <div class="profile-name">{{ employee_in_session_fullname.name }} {{ employee_in_session_fullname.surname }}</div>
+<section id="employee-details-page" data-mode="{{ 'edit' if is_editing else 'view' }}" aria-labelledby="employee-details-title">
+  <header class="employee-header">
+    <a class="btn employee-back" href="{{ url_for('employees') }}" aria-label="Voltar para colaboradores">
+      {{ icon('arrow') }}
+    </a>
+    <div>
+      <h1 class="page-title" id="employee-details-title">Detalhes do colaborador</h1>
+      <p class="page-subtitle">{{ 'Altere os campos desejados e salve ao terminar.' if is_editing else 'Consulte os dados cadastrais. Use “Editar colaborador” para fazer alterações.' }}</p>
     </div>
-    <nav class="nav" aria-label="Navegação principal">
-      <a href="{{ url_for('dashboard') }}">{{ icon('home') }} Dashboard</a>
-      <a href="{{ url_for('attendence') }}">{{ icon('clock') }} Bater ponto</a>
-      {% if session.get('access_level', 0) >= 1 %}
-      <a href="{{ url_for('employees') }}" class="active" aria-current="page">{{ icon('users') }} Colaboradores</a>
-      {% endif %}
-      {% if session.get('access_level', 0) >= 2 %}
-      <a href="{{ url_for('dashboard_enterprise') }}">{{ icon('building') }} Corporação</a>
-      {% endif %}
-    </nav>
-  </aside>
+  </header>
 
-  <main class="panel main">
-    <header class="page-head">
-      <a class="back" href="{{ url_for('employees') }}" aria-label="Voltar para colaboradores">{{ icon('arrow') }}</a>
-      <div>
-        <h1>Detalhes do colaborador</h1>
-        <p>Consulte os dados cadastrais. Use “Editar dados” para fazer alterações.</p>
-      </div>
-    </header>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <p class="employee-message employee-message--{{ category }}" role="alert">{{ message }}</p>
+    {% endfor %}
+  {% endwith %}
+  {% if error is defined and error %}
+    <p class="employee-message employee-message--error" role="alert">{{ error }}</p>
+  {% endif %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="flash {{ category }}" role="alert">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
-    {% if error %}
-      <div class="flash error" role="alert">{{ error }}</div>
+  {% set shown_name = values.get('full_name') or 'Colaborador' %}
+  {% set name_parts = shown_name.split() %}
+  <section class="card employee-summary" aria-label="Resumo do colaborador">
+    <div class="employee-initials" aria-hidden="true">{{ (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else ''))|upper if name_parts else 'C' }}</div>
+    <div>
+      <h2 class="employee-summary__name">{{ shown_name }}</h2>
+      <p class="employee-summary__meta">
+        {{ values.get('role') or 'Cargo não informado' }}{% if values.get('department') %} · {{ values.get('department') }}{% endif %}
+        {% if values.get('register_code') %} · Matrícula {{ values.get('register_code') }}{% endif %}
+      </p>
+    </div>
+    {% if not is_editing %}
+      <form class="employee-edit-form" method="get" action="{{ url_for('employee_details', employee_id=employee_info['id_colaborador']) }}">
+        <button class="btn btn--primary" type="submit" name="edit" value="1">{{ icon('edit') }} Editar colaborador</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <form id="employee-details-form" method="post" action="{{ url_for('employee_details', employee_id=employee_info['id_colaborador']) }}">
+    {% if csrf_token is defined %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% endif %}
 
-    <section class="summary">
-      <div class="initials" aria-hidden="true">{{ (parts[0][0] ~ (parts[-1][0] if parts|length > 1 else ''))|upper }}</div>
-      <div class="summary-info">
-        <div class="summary-name">{{ shown_name }}</div>
-        <div class="summary-meta">
-          {{ val('role') or 'Cargo não informado' }}{% if val('department')|trim %} • {{ val('department') }}{% endif %}
-          {% if val('register_code')|trim %} • Matrícula {{ val('register_code') }}{% endif %}
-        </div>
+    <fieldset class="card form-section" {% if not is_editing %}disabled{% endif %}>
+      <legend class="form-section__title">{{ icon('user') }} Dados pessoais</legend>
+      <div class="form-grid">
+        {{ text_field('full_name', 'Nome completo', 'Digite o nome completo', cols='form-field--span-2', autocomplete='name') }}
+        {{ text_field('birth_date', 'Data de nascimento', type='date', autocomplete='bday') }}
+        {{ text_field('cpf', 'CPF', '00000000000', inputmode='numeric', pattern='[0-9]{11}', maxlength='11', title='Informe os 11 dígitos do CPF, sem pontuação.') }}
+        {{ select_field('gender', 'Gênero', [('M', 'Masculino'), ('F', 'Feminino'), ('Outro', 'Outro')]) }}
+        {{ text_field('corporative_email', 'E-mail corporativo', 'email@exemplo.com', type='email', cols='form-field--span-2', autocomplete='email') }}
+        {{ text_field('phone_number', 'Telefone', '11999999999', type='tel', inputmode='numeric', pattern='[0-9]{11}', maxlength='11', autocomplete='tel-national', title='Informe o DDD e o número, com 11 dígitos e sem pontuação.') }}
       </div>
-      <div class="summary-actions">
-        <button type="button" class="btn primary" id="btn-edit">{{ icon('edit') }} Editar dados</button>
+    </fieldset>
+
+    <fieldset class="card form-section" {% if not is_editing %}disabled{% endif %}>
+      <legend class="form-section__title">{{ icon('lock') }} Dados de acesso</legend>
+      <div class="form-grid">
+        {{ text_field('register_code', 'Matrícula', 'Código de registro', cols='form-field--span-2', autocomplete='off') }}
+        {{ select_field('access_level', 'Nível de acesso', [(0, 'Colaborador'), (1, 'Gestor'), (2, 'Administrador')], cols='form-field--span-2') }}
       </div>
-    </section>
+      {# The supplied update route does not persist passwords, so no password field is submitted. #}
+    </fieldset>
 
-    <form method="POST" id="details-form" autocomplete="off">
-      {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
+    <fieldset class="card form-section" {% if not is_editing %}disabled{% endif %}>
+      <legend class="form-section__title">{{ icon('briefcase') }} Dados profissionais</legend>
+      <div class="form-grid">
+        {{ text_field('role', 'Cargo', 'Digite o cargo', autocomplete='organization-title') }}
+        {{ text_field('department', 'Departamento', 'Digite o departamento') }}
+        {{ select_field('contract_type', 'Tipo de contrato', [('CLT', 'CLT'), ('PJ', 'PJ'), ('Estágio', 'Estágio'), ('Temporário', 'Temporário'), ('Aprendiz', 'Aprendiz')], cols='form-field--span-2') }}
+        {{ text_field('admission_date', 'Data de admissão', type='date') }}
+        {{ text_field('salary_value', 'Salário (R$)', '0,00', type='number', min='0.01', step='0.01') }}
+        {{ text_field('weekly_workload', 'Carga horária semanal', '44', type='number', min='1', max='44', step='1', note='Informe a quantidade de horas por semana.') }}
+        {{ select_field('work_shift', 'Turno', [('Manhã', 'Manhã'), ('Tarde', 'Tarde'), ('Noite', 'Noite'), ('Integral', 'Integral')]) }}
+      </div>
+    </fieldset>
 
-      <fieldset>
-        <legend>{{ icon('user') }} Dados pessoais</legend>
-        <div class="grid">
-          {{ text_field('full_name', 'Nome completo', 'Digite o nome completo', icon_name='user', cols='c4') }}
-          {{ text_field('birth_date', 'Data de nascimento', '', type='date', icon_name='calendar', cols='c3') }}
-          {{ text_field('cpf', 'CPF', '000.000.000-00', icon_name='card', cols='c3',
-                        extra='inputmode="numeric" maxlength="14" pattern="\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}" title="Use o formato 000.000.000-00"') }}
-          {{ select_field('gender', 'Gênero', 'Selecione', [
-                ('Masculino', 'Masculino'), ('Feminino', 'Feminino'),
-                ('Outro', 'Outro'), ('Prefiro não informar', 'Prefiro não informar')], cols='c2') }}
-          {{ text_field('corporative_email', 'E-mail corporativo', 'email@exemplo.com', type='email', icon_name='mail', cols='c6') }}
-          {{ text_field('phone_number', 'Telefone', '(00) 00000-0000', type='tel', icon_name='phone', cols='c6',
-                        extra='inputmode="tel" maxlength="15"') }}
-        </div>
-      </fieldset>
+    <fieldset class="card form-section" {% if not is_editing %}disabled{% endif %}>
+      <legend class="form-section__title">{{ icon('pin') }} Endereço</legend>
+      <div class="form-grid">
+        {{ text_field('cep', 'CEP', '00000000', inputmode='numeric', pattern='[0-9]{8}', maxlength='8', autocomplete='postal-code', title='Informe os 8 dígitos do CEP, sem pontuação.') }}
+        {{ text_field('street', 'Endereço', 'Digite o endereço', cols='form-field--span-2', autocomplete='address-line1') }}
+        {{ text_field('number', 'Número', 'Número do imóvel') }}
+        {{ text_field('complement', 'Complemento', 'Opcional', required=false, cols='form-field--span-2', autocomplete='address-line2') }}
+        {{ text_field('neighborhood', 'Bairro', 'Digite o bairro', cols='form-field--span-2') }}
+        {{ text_field('city', 'Cidade', 'Digite a cidade', cols='form-field--span-2', autocomplete='address-level2') }}
+        {% set states = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'] %}
+        {% set state_options = [] %}
+        {% for state in states %}{% set _ = state_options.append((state, state)) %}{% endfor %}
+        {{ select_field('state', 'Estado', state_options, cols='form-field--span-2') }}
+      </div>
+    </fieldset>
 
-      <fieldset>
-        <legend>{{ icon('lock') }} Dados de acesso</legend>
-        <div class="grid">
-          {{ text_field('register_code', 'Matrícula', 'Código de registro', icon_name='hash', cols='c4') }}
-          <div class="field c4">
-            <label for="password">Nova senha</label>
-            <div class="control has-icon">
-              {{ icon('lock') }}
-              <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="new-password">
+    <fieldset class="card form-section" aria-describedby="schedule-help" {% if not is_editing %}disabled{% endif %}>
+      <legend class="form-section__title">{{ icon('calcheck') }} Escala semanal</legend>
+      <p class="form-hint" id="schedule-help">{{ 'Marque os dias de trabalho e preencha seus horários. Os horários dos dias desmarcados serão ignorados.' if is_editing else 'Dias e horários de trabalho cadastrados para este colaborador.' }}</p>
+      {% set days = [('monday', 'Segunda-feira', 'Segunda'), ('tuesday', 'Terça-feira', 'Terça'), ('wednesday', 'Quarta-feira', 'Quarta'), ('thursday', 'Quinta-feira', 'Quinta'), ('friday', 'Sexta-feira', 'Sexta'), ('saturday', 'Sábado', 'Sábado'), ('sunday', 'Domingo', 'Domingo')] %}
+      {% set time_fields = [('clock_in', 'hora_entrada', 'Hora de entrada', '08:00'), ('break_start', 'inicio_intervalo', 'Início do intervalo', '12:00'), ('break_end', 'fim_intervalo', 'Fim do intervalo', '13:00'), ('clock_out', 'hora_saida', 'Hora de saída', '18:00')] %}
+      {% set schedule_rows = {} %}
+      {% for row in employee_schedule %}
+        {% set _ = schedule_rows.update({row['dia_semana']: row}) %}
+      {% endfor %}
+      <div class="employee-schedule">
+        <div class="schedule-grid">
+        {% for day, label, database_day in days %}
+          {% set row = schedule_rows.get(day, schedule_rows.get(database_day, {})) %}
+          {% set active_name = 'schedule[' ~ day ~ '][active]' %}
+          {% set active = request.form.get(active_name) if request.method == 'POST' else row.get('hora_entrada') or row.get('hora_saida') %}
+          <section class="schedule-day" aria-labelledby="{{ day }}-title">
+            <div class="schedule-day__header">
+              <h3 class="schedule-day__title" id="{{ day }}-title">{{ icon('calendar') }} {{ label }}</h3>
+              <label class="day-switch" for="{{ day }}-active">
+                <input type="checkbox" id="{{ day }}-active" name="{{ active_name }}" value="on" aria-label="Ativo: {{ label }}" aria-controls="{{ day }}-times" {% if active %}checked{% endif %}>
+                <span class="day-switch__track" aria-hidden="true"></span>
+                <span>Ativo</span>
+              </label>
             </div>
-            <p class="note">Digite apenas se quiser trocar a senha.</p>
-          </div>
-          {{ select_field('access_level', 'Nível de acesso', 'Selecione', [
-                (0, 'Colaborador'), (1, 'Gestor'), (2, 'Administrador')], cols='c4') }}
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>{{ icon('briefcase') }} Dados profissionais</legend>
-        <div class="grid">
-          {% if roles is defined %}
-            {{ select_field('role', 'Cargo', 'Selecione o cargo', roles, cols='c4') }}
-          {% else %}
-            {{ text_field('role', 'Cargo', 'Digite o cargo', cols='c4') }}
-          {% endif %}
-          {% if departments is defined %}
-            {{ select_field('department', 'Departamento', 'Selecione o departamento', departments, cols='c4') }}
-          {% else %}
-            {{ text_field('department', 'Departamento', 'Digite o departamento', cols='c4') }}
-          {% endif %}
-          {{ select_field('contract_type', 'Tipo de contrato', 'Selecione o tipo', [
-                ('CLT', 'CLT'), ('PJ', 'PJ'), ('Estágio', 'Estágio'),
-                ('Temporário', 'Temporário'), ('Aprendiz', 'Aprendiz')], cols='c4') }}
-
-          {{ text_field('admission_date', 'Data de admissão', '', type='date', icon_name='calendar', cols='c3') }}
-          <div class="field c3">
-            <label for="salary_value">Salário<span class="req" aria-hidden="true">*</span></label>
-            <div class="control has-prefix">
-              <span class="prefix">R$</span>
-              <input id="salary_value" name="salary_value" type="number" step="0.01" min="0"
-                     placeholder="0,00" value="{{ val('salary_value') }}" required>
+            <div class="schedule-day__body" id="{{ day }}-times">
+              {% for field, column, text, default in time_fields %}
+                {% set name = 'schedule[' ~ day ~ '][' ~ field ~ ']' %}
+                {% set current = request.form.get(name, '') if request.method == 'POST' else ((row.get(column) or '')[:5] if row else default) %}
+                <div class="time-row">
+                  <label for="{{ day }}-{{ field }}">{{ icon('clock') }} {{ text }}</label>
+                  <input type="time" id="{{ day }}-{{ field }}" name="{{ name }}" value="{{ current }}">
+                </div>
+              {% endfor %}
             </div>
-          </div>
-          {{ select_field('weekly_workload', 'Carga horária semanal', 'Selecione', [
-                (20, '20 horas'), (30, '30 horas'), (36, '36 horas'),
-                (40, '40 horas'), (44, '44 horas')], cols='c3') }}
-          {{ select_field('work_shift', 'Turno', 'Selecione', [
-                ('Manhã', 'Manhã'), ('Tarde', 'Tarde'), ('Noite', 'Noite'),
-                ('Integral', 'Integral')], cols='c3') }}
+          </section>
+        {% endfor %}
         </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>{{ icon('pin') }} Endereço</legend>
-        <div class="grid">
-          {{ text_field('cep', 'CEP', '00000-000', cols='c3',
-                        extra='inputmode="numeric" maxlength="9" pattern="\\d{5}-?\\d{3}" title="Use o formato 00000-000"') }}
-          {{ text_field('street', 'Endereço', 'Digite o endereço', cols='c5') }}
-          {{ text_field('number', 'Número', '000', cols='c2', extra='inputmode="numeric"') }}
-          {{ text_field('complement', 'Complemento', 'Opcional', required=False, cols='c2') }}
-
-          {{ text_field('neighborhood', 'Bairro', 'Digite o bairro', cols='c4') }}
-          {{ text_field('city', 'Cidade', 'Digite a cidade', cols='c4') }}
-          {% set ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
-          {% set uf_opts = [] %}{% for u in ufs %}{% set _ = uf_opts.append((u, u)) %}{% endfor %}
-          {{ select_field('state', 'Estado', 'Selecione', uf_opts, cols='c4') }}
-        </div>
-      </fieldset>
-
-      <div class="actions" id="edit-actions" hidden>
-        <button type="button" class="btn" id="btn-cancel">Cancelar</button>
-        <button type="submit" class="btn primary">{{ icon('save') }} Salvar alterações</button>
       </div>
-    </form>
-  </main>
-</div>
+    </fieldset>
 
-<script>
-  const form = document.getElementById('details-form');
-  const btnEdit = document.getElementById('btn-edit');
-  const btnCancel = document.getElementById('btn-cancel');
-  const actions = document.getElementById('edit-actions');
-  const fields = form.querySelectorAll('input, select');
-
-  function setEditing(on) {
-    fields.forEach(f => { f.disabled = !on; });
-    btnEdit.hidden = on;
-    actions.hidden = !on;
-  }
-
-  btnEdit.addEventListener('click', () => { setEditing(true); document.getElementById('full_name').focus(); });
-  btnCancel.addEventListener('click', () => { form.reset(); setEditing(false); });
-
-  // If the server re-rendered the form after a POST (validation error), stay in edit mode
-  setEditing({{ 'true' if request.method == 'POST' else 'false' }});
-
-  // ---------- Input masks ----------
-  const onlyDigits = v => v.replace(/\D/g, '');
-  function mask(el, fn) {
-    if (!el) return;
-    el.addEventListener('input', () => { el.value = fn(onlyDigits(el.value)); });
-    if (el.value) el.value = fn(onlyDigits(el.value));
-  }
-  mask(document.getElementById('cpf'), d =>
-    d.slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'));
-  mask(document.getElementById('cep'), d => d.slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'));
-  mask(document.getElementById('phone_number'), d => {
-    d = d.slice(0, 11);
-    if (d.length <= 2) return d ? '(' + d : '';
-    if (d.length <= 6) return d.replace(/(\d{2})(\d+)/, '($1) $2');
-    if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d+)/, '($1) $2-$3');
-    return d.replace(/(\d{2})(\d{5})(\d+)/, '($1) $2-$3');
-  });
-
-  // ---------- Address autofill by CEP (only while editing, when the CEP changes) ----------
-  const cepInput = document.getElementById('cep');
-  cepInput.addEventListener('change', async () => {
-    const cep = onlyDigits(cepInput.value);
-    if (cep.length !== 8) return;
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-      const data = await res.json();
-      if (data.erro) return;
-      document.getElementById('street').value = data.logradouro || '';
-      document.getElementById('neighborhood').value = data.bairro || '';
-      document.getElementById('city').value = data.localidade || '';
-      document.getElementById('state').value = data.uf || '';
-      document.getElementById('number').focus();
-    } catch (err) { /* the user fills the address manually */ }
-  });
-</script>
-</body>
-</html>
+    {% if is_editing %}
+      <div class="employee-actions">
+        <a class="btn" href="{{ url_for('employee_details', employee_id=employee_info['id_colaborador']) }}">Cancelar alterações</a>
+        <button class="btn btn--primary" type="submit">{{ icon('save') }} Salvar alterações</button>
+      </div>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}
