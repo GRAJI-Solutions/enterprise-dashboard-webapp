@@ -231,7 +231,7 @@ def employee_details(employee_id):
                 # 4. Atualizar Escala (Estratégia: remove as escalas anteriores e insere as novas marcadas)
                 sqlexecute("DELETE FROM escala WHERE id_colaborador = ?;", employee_id)
                 
-                workdays = [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+                workdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
                 for day in workdays:
                     if request.form.get(f'schedule[{day}][active]'):
                         sqlexecute(
@@ -241,7 +241,7 @@ def employee_details(employee_id):
                                 fim_intervalo, hora_saida, id_colaborador
                             ) VALUES (?, ?, ?, ?, ?, ?);
                             """,
-                            dia,
+                            day,
                             request.form.get(f'schedule[{day}][clock_in]'),
                             request.form.get(f'schedule[{day}][break_start]'),
                             request.form.get(f'schedule[{day}][break_end]'),
@@ -350,7 +350,7 @@ def onboard_employee():
             return httperror("Todos os campos obrigatórios devem ser preenchidos.", 400)
         
         # Check if at least one workday is selected
-        workdays = [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+        workdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         has_selected_day = any(request.form.get(f'schedule[{day}][active]') for day in workdays)
 
         if not has_selected_day:

@@ -4,7 +4,7 @@
 
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/employee.css') }}?v=8-width">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}?v=8-width">
 
 <style>
 @media (min-width: 761px) {
@@ -76,12 +76,12 @@
         {% for employee in employees %}
         <tr class="employees__row employees__row--linked">
           <td data-label="Nome">
-            <a class="employees__profile-link" href="{{ url_for('employee_details', employee_id=employee['id_colaborador']) }}" aria-label="Ver colaborador {{ employee['nome_completo'] }}">{{ employee['nome_completo'] }}</a>
+            <a class="employees__profile-link" href="{{ url_for('employee_details', employee_id=employee['id']) }}" aria-label="Ver colaborador {{ employee['nome'] }}">{{ employee['nome'] }}</a>
           </td>
 
           <td data-label="Telefone">
-            {% if employee['numero_celular'] %}
-              {% for number in (employee['numero_celular'] | string).split(' / ') %}
+            {% if employee['telefone'] %}
+              {% for number in (employee['telefone'] | string).split(' / ') %}
               <span class="employees__phone">{{ format_phone(number) }}</span>
               {% endfor %}
             {% else %}
@@ -89,7 +89,7 @@
             {% endif %}
           </td>
 
-          <td data-label="E-mail">{{ employee['email_corporativo'] or 'Não informado' }}</td>
+          <td data-label="E-mail">{{ employee['email'] or 'Não informado' }}</td>
           <td data-label="Turno">{{ employee['turno'] or 'Não informado' }}</td>
         </tr>
         {% else %}

@@ -1,17 +1,14 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Novo colaborador</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/onboard_employee.css') }}">
-</head>
-<body>
+{% extends "layout.html" %}
+{% set pagina = 'colaboradores' %}
 
-{# ---------- Icons (macro) ---------- #}
+{% block title %}Novo colaborador | Graji Solutions{% endblock %}
+
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/onboard_employee.css') }}">
+{% endblock %}
+
+{% block main %}
 {% macro icon(name) -%}
   {%- set paths = {
     'user':     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
@@ -33,346 +30,168 @@
     'calcheck': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4m-7 8 2 2 4-4"/>',
     'arrow':    '<path d="M19 12H5M11 6l-6 6 6 6"/>'
   } -%}
-  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ paths[name]|safe }}</svg>
+  <svg class="employee-icon" viewBox="0 0 24 24" aria-hidden="true">{{ paths[name]|safe }}</svg>
 {%- endmacro %}
 
-{# ---------- Text field (macro) ---------- #}
-{% macro text_field(name, label, placeholder='', type='text', icon_name=None, required=True, cols='c4', extra='') -%}
-  <div class="field {{ cols }}">
-    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
-    <div class="control {{ 'has-icon' if icon_name }}">
-      {% if icon_name %}{{ icon(icon_name) }}{% endif %}
-      <input id="{{ name }}" name="{{ name }}" type="{{ type }}" placeholder="{{ placeholder }}"
-             value="{{ request.form.get(name, '') }}" {{ 'required' if required }} {{ extra|safe }}>
+{% set field_icons = {
+  'full_name': 'user', 'birth_date': 'calendar', 'cpf': 'card', 'gender': 'user',
+  'corporative_email': 'mail', 'phone_number': 'phone', 'register_code': 'hash',
+  'password': 'lock', 'access_level': 'lock', 'role': 'briefcase',
+  'department': 'building', 'contract_type': 'briefcase', 'admission_date': 'calendar',
+  'salary_value': 'dollar', 'weekly_workload': 'clock', 'work_shift': 'clock',
+  'cep': 'pin', 'street': 'home', 'number': 'hash', 'complement': 'home',
+  'neighborhood': 'pin', 'city': 'building', 'state': 'pin'
+} %}
+
+{% set values = request.form %}
+
+{% macro text_field(name, label, placeholder='', type='text', cols='', required=true, note='', icon_name=none) -%}
+  {% set current = '' if type == 'password' else values.get(name, '') %}
+  {% set field_icon = icon_name or field_icons.get(name) %}
+  <div class="form-field {{ cols }}">
+    <label for="{{ name }}">{{ label }}</label>
+    <div class="employee-control{% if field_icon %} employee-control--icon{% endif %}">
+      {% if field_icon %}{{ icon(field_icon) }}{% endif %}
+      <input id="{{ name }}" name="{{ name }}" type="{{ type }}"
+           value="{{ '' if current is none else current }}" placeholder="{{ placeholder }}"
+           {% if required %}required{% endif %}
+           {% if note %}aria-describedby="{{ name }}-help"{% endif %}
+           {% for attribute, value in kwargs.items() %}{{ attribute }}="{{ value }}" {% endfor %}>
     </div>
+    {% if note %}<small id="{{ name }}-help" class="field-note">{{ note }}</small>{% endif %}
   </div>
 {%- endmacro %}
 
-{# ---------- Select field (macro): options = list of (value, label) ---------- #}
-{% macro select_field(name, label, placeholder, options, required=True, cols='c4') -%}
-  {% set current = request.form.get(name, '') %}
-  <div class="field {{ cols }}">
-    <label for="{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
-    <div class="control">
-      <select id="{{ name }}" name="{{ name }}" {{ 'required' if required }}>
-        <option value="" disabled hidden {{ 'selected' if not current }}>{{ placeholder }}</option>
-        {% for value, text in options %}
-          <option value="{{ value }}" {{ 'selected' if current == value|string }}>{{ text }}</option>
-        {% endfor %}
+{% macro select_field(name, label, options, placeholder='Selecione', cols='') -%}
+  {% set field_icon = field_icons.get(name) %}
+  {% set current = values.get(name, '')|string %}
+  <div class="form-field {{ cols }}">
+    <label for="{{ name }}">{{ label }}</label>
+    <div class="employee-control employee-control--select{% if field_icon %} employee-control--icon{% endif %}">
+      {% if field_icon %}{{ icon(field_icon) }}{% endif %}
+      <select id="{{ name }}" name="{{ name }}" required>
+      <option value="" disabled {% if not current %}selected{% endif %}>{{ placeholder }}</option>
+      {% for value, text in options %}
+        <option value="{{ value }}" {% if current == value|string %}selected{% endif %}>{{ text }}</option>
+      {% endfor %}
       </select>
     </div>
   </div>
 {%- endmacro %}
 
-<div class="app">
-
-  <aside class="panel sidebar">
-    <div class="profile">
-      <div class="avatar">{{ icon('user') }}</div>
-      <div class="profile-name">{{ employee_in_session_fullname.name }} {{ employee_in_session_fullname.surname }}</div>
+<section id="onboard-employee-page" aria-labelledby="onboard-employee-title">
+  <header class="employee-header">
+    <a class="btn employee-back" href="{{ url_for('employees') }}" aria-label="Voltar para colaboradores">
+      {{ icon('arrow') }}
+    </a>
+    <div>
+      <h1 class="page-title" id="onboard-employee-title">Novo colaborador</h1>
+      <p class="page-subtitle">Preencha os dados para cadastrar um novo colaborador.</p>
     </div>
-    <nav class="nav" aria-label="Navegação principal">
-      <a href="{{ url_for('dashboard') }}">{{ icon('home') }} Dashboard</a>
-      <a href="{{ url_for('attendence') }}">{{ icon('clock') }} Bater ponto</a>
-      {% if session.get('access_level', 0) >= 1 %}
-      <a href="{{ url_for('employees') }}" class="active" aria-current="page">{{ icon('users') }} Colaboradores</a>
-      {% endif %}
-      {% if session.get('access_level', 0) >= 2 %}
-      <a href="{{ url_for('dashboard_enterprise') }}">{{ icon('building') }} Corporação</a>
-      {% endif %}
-    </nav>
-  </aside>
+  </header>
 
-  <main class="panel main">
-    <header class="page-head">
-      <a class="back" href="{{ url_for('employees') }}" aria-label="Voltar para colaboradores">{{ icon('arrow') }}</a>
-      <div>
-        <h1>Novo colaborador</h1>
-        <p>Preencha os dados para cadastrar um novo colaborador</p>
-      </div>
-    </header>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <p class="employee-message employee-message--{{ category }}" role="alert">{{ message }}</p>
+    {% endfor %}
+  {% endwith %}
+  {% if error is defined and error %}
+    <p class="employee-message employee-message--error" role="alert">{{ error }}</p>
+  {% endif %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="flash {{ category }}" role="alert">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
-
-    {% if error %}
-      <div class="flash error" role="alert">{{ error }}</div>
+  <form method="post" action="{{ url_for('onboard_employee') }}">
+    {% if csrf_token is defined %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% endif %}
 
-    <form method="POST" autocomplete="off">
-      {# If you use Flask-WTF/CSRFProtect, uncomment: #}
-      {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
-
-      <!-- Personal data -->
-      <fieldset>
-        <legend>{{ icon('user') }} Dados pessoais</legend>
-        <div class="grid">
-          {{ text_field('full_name', 'Nome completo', 'Digite o nome completo', icon_name='user', cols='c4') }}
-          {{ text_field('birth_date', 'Data de nascimento', 'DD/MM/AAAA', type='date', icon_name='calendar', cols='c3') }}
-          {{ text_field('cpf', 'CPF', '000.000.000-00', icon_name='card', cols='c3',
-                        extra='inputmode="numeric" maxlength="14" pattern="\d{3}\.\d{3}\.\d{3}-\d{2}" title="Use o formato 000.000.000-00"') }}
-          {{ select_field('gender', 'Gênero', 'Selecione', [
-                ('Masculino', 'Masculino'), ('Feminino', 'Feminino'),
-                ('Outro', 'Outro'), ('Prefiro não informar', 'Prefiro não informar')], cols='c2') }}
-          {{ text_field('corporative_email', 'E-mail corporativo', 'email@exemplo.com', type='email', icon_name='mail', cols='c6') }}
-          {{ text_field('phone_number', 'Telefone', '(00) 00000-0000', type='tel', icon_name='phone', cols='c6',
-                        extra='inputmode="tel" maxlength="15"') }}
-        </div>
-      </fieldset>
-
-      <!-- Login data -->
-      <fieldset>
-        <legend>{{ icon('lock') }} Dados de acesso</legend>
-        <div class="grid">
-          {{ text_field('register_code', 'Matrícula', 'Código de registro', icon_name='hash', cols='c4') }}
-          {{ text_field('password', 'Senha provisória', 'Mínimo de 8 caracteres', type='password', icon_name='lock', cols='c4',
-                        extra='minlength="8" autocomplete="new-password"') }}
-          {{ select_field('access_level', 'Nível de acesso', 'Selecione', [
-                (0, 'Colaborador'), (1, 'Gestor'), (2, 'Administrador')], cols='c4') }}
-        </div>
-      </fieldset>
-
-      <!-- Professional data -->
-      <fieldset>
-        <legend>{{ icon('briefcase') }} Dados profissionais</legend>
-        <div class="grid">
-          {% if roles is defined %}
-            {{ select_field('role', 'Cargo', 'Selecione o cargo', roles, cols='c4') }}
-          {% else %}
-            {{ text_field('role', 'Cargo', 'Digite o cargo', cols='c4') }}
-          {% endif %}
-          {% if departments is defined %}
-            {{ select_field('department', 'Departamento', 'Selecione o departamento', departments, cols='c4') }}
-          {% else %}
-            {{ text_field('department', 'Departamento', 'Digite o departamento', cols='c4') }}
-          {% endif %}
-          {{ select_field('contract_type', 'Tipo de contrato', 'Selecione o tipo', [
-                ('CLT', 'CLT'), ('PJ', 'PJ'), ('Estágio', 'Estágio'),
-                ('Temporário', 'Temporário'), ('Aprendiz', 'Aprendiz')], cols='c4') }}
-
-          {{ text_field('admission_date', 'Data de admissão', 'DD/MM/AAAA', type='date', icon_name='calendar', cols='c3') }}
-          <div class="field c3">
-            <label for="salary_value">Salário<span class="req" aria-hidden="true">*</span></label>
-            <div class="control has-prefix">
-              <span class="prefix">R$</span>
-              <input id="salary_value" name="salary_value" type="number" step="0.01" min="0"
-                     placeholder="0,00" value="{{ request.form.get('salary_value', '') }}" required>
-            </div>
-          </div>
-          {{ select_field('weekly_workload', 'Carga horária semanal', 'Selecione', [
-                (20, '20 horas'), (30, '30 horas'), (36, '36 horas'),
-                (40, '40 horas'), (44, '44 horas')], cols='c3') }}
-          {{ select_field('work_shift', 'Turno', 'Selecione', [
-                ('Manhã', 'Manhã'), ('Tarde', 'Tarde'), ('Noite', 'Noite'),
-                ('Integral', 'Integral')], cols='c3') }}
-        </div>
-      </fieldset>
-
-      <!-- Address -->
-      <fieldset>
-        <legend>{{ icon('pin') }} Endereço</legend>
-        <div class="grid">
-          {{ text_field('cep', 'CEP', '00000-000', cols='c3',
-                        extra='inputmode="numeric" maxlength="9" pattern="\d{5}-?\d{3}" title="Use o formato 00000-000"') }}
-          {{ text_field('street', 'Endereço', 'Digite o endereço', cols='c5') }}
-          {{ text_field('number', 'Número', '000', cols='c2', extra='inputmode="numeric"') }}
-          {{ text_field('complement', 'Complemento', 'Opcional', required=False, cols='c2') }}
-
-          {{ text_field('neighborhood', 'Bairro', 'Digite o bairro', cols='c4') }}
-          {{ text_field('city', 'Cidade', 'Digite a cidade', cols='c4') }}
-          {% set ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
-          {% set uf_opts = [] %}{% for u in ufs %}{% set _ = uf_opts.append((u, u)) %}{% endfor %}
-          {{ select_field('state', 'Estado', 'Selecione', uf_opts, cols='c4') }}
-        </div>
-      </fieldset>
-
-      <!-- Weekly schedule -->
-      <fieldset>
-        <legend>{{ icon('calcheck') }} Escala semanal</legend>
-        <p class="schedule-hint">Selecione os dias ativos e preencha os horários. Pelo menos um dia deve ser selecionado.</p>
-
-{% set days = [('monday', 'Segunda-feira'), ('tuesday', 'Terça-feira'), ('wednesday', 'Quarta-feira'),
-               ('thursday', 'Quinta-feira'), ('friday', 'Sexta-feira'), ('saturday', 'Sábado'), ('sunday', 'Domingo')] %}
-{% set time_fields = [('hora_entrada', 'Hora de entrada', '08:00'), ('inicio_intervalo', 'Início do intervalo', '12:00'),
-                      ('fim_intervalo', 'Fim do intervalo', '13:00'), ('hora_saida', 'Hora de saída', '18:00')] %}
-
-{% set rows = {} %}
-{% if schedule is defined and schedule %}
-  {% if schedule is mapping %}
-    {% for k, v in schedule.items() %}{% set _ = rows.update({k: v}) %}{% endfor %}
-  {% else %}
-    {% for r in schedule %}{% set _ = rows.update({r['dia_semana']: r}) %}{% endfor %}
-  {% endif %}
-{% endif %}
-{% set has_schedule = rows|length > 0 %}
-
-<div class="schedule" id="schedule-root">
-  <div id="schedule-error" class="flash error" role="alert" hidden>Selecione pelo menos um dia de trabalho.</div>
-
-  <div class="schedule-grid">
-    {% for key, label in days %}
-      {% set row = rows.get(key) %}
-      {% if has_schedule %}
-        {% set is_on = row is not none and row['hora_entrada'] %}
-      {% else %}
-        {% set is_on = key in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] %}
-      {% endif %}
-      <section class="day-card {{ 'is-on' if is_on }}" data-day="{{ key }}">
-        <div class="day-head">
-          <span class="day-title">{{ icon('calendar') }} {{ label }}</span>
-          <label class="switch">
-            <input type="checkbox" name="escala[{{ key }}][ativo]" value="on" {{ 'checked' if is_on }}>
-            <span class="track"></span>
-            <span>Ativo</span>
-          </label>
-        </div>
-        <div class="day-body">
-          {% for field, text, default in time_fields %}
-            {% if is_on and row %}
-              {% set value = (row[field] or '')[:5] %}
-            {% elif is_on %}
-              {% set value = default %}
-            {% else %}
-              {% set value = '' %}
-            {% endif %}
-            <div class="time-row">
-              <label for="{{ key }}_{{ field }}">{{ icon('clock') }} {{ text }}</label>
-              <input type="time" id="{{ key }}_{{ field }}" name="escala[{{ key }}][{{ field }}]"
-                     value="{{ value }}" data-default="{{ default }}" data-field="{{ field }}" {{ '' if is_on else 'disabled' }}>
-            </div>
-          {% endfor %}
-        </div>
-      </section>
-    {% endfor %}
-  </div>
-</div>
-
-<script>
-  (function () {
-    const root = document.getElementById('schedule-root');
-    const form = root.closest('form');
-    const errorBox = document.getElementById('schedule-error');
-    const cards = root.querySelectorAll('.day-card');
-
-    function syncCard(card) {
-      const check = card.querySelector('input[type="checkbox"]');
-      card.classList.toggle('is-on', check.checked);
-      card.querySelectorAll('input[type="time"]').forEach(input => {
-        input.disabled = check.disabled || !check.checked;
-      });
-    }
-    window.syncSchedule = () => cards.forEach(syncCard);
-
-    cards.forEach(card => {
-      const check = card.querySelector('input[type="checkbox"]');
-      check.addEventListener('change', () => {
-        syncCard(card);
-        if (check.checked) {
-          card.querySelectorAll('input[type="time"]').forEach(input => {
-            if (!input.value) input.value = input.dataset.default;
-          });
-          errorBox.hidden = true;
-        }
-      });
-    });
-
-    form.addEventListener('submit', event => {
-      const active = [...cards].filter(card => card.querySelector('input[type="checkbox"]').checked);
-
-      if (active.length === 0) {
-        event.preventDefault();
-        errorBox.hidden = false;
-        errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-      }
-
-      for (const card of active) {
-        const get = field => card.querySelector(`[data-field="${field}"]`);
-        const clockIn = get('hora_entrada'), clockOut = get('hora_saida');
-        const breakStart = get('inicio_intervalo'), breakEnd = get('fim_intervalo');
-        [clockIn, clockOut, breakStart, breakEnd].forEach(input => {
-          input.setCustomValidity('');
-          input.addEventListener('input', () => input.setCustomValidity(''), { once: true });
-        });
-
-        let problem = null;
-        if (!clockIn.value) problem = [clockIn, 'Informe a hora de entrada.'];
-        else if (!clockOut.value) problem = [clockOut, 'Informe a hora de saída.'];
-        else if (clockOut.value <= clockIn.value) problem = [clockOut, 'A saída deve ser depois da entrada.'];
-        else if ((breakStart.value && !breakEnd.value) || (!breakStart.value && breakEnd.value)) {
-          problem = [breakEnd, 'Informe o início e o fim do intervalo.'];
-        } else if (breakStart.value && breakEnd.value <= breakStart.value) {
-          problem = [breakEnd, 'O fim do intervalo deve ser depois do início.'];
-        }
-
-        if (problem) {
-          event.preventDefault();
-          problem[0].setCustomValidity(problem[1]);
-          problem[0].reportValidity();
-          return;
-        }
-      }
-    });
-
-    window.syncSchedule();
-  })();
-</script>
-      </fieldset>
-
-      <div class="actions">
-        <a class="btn" href="{{ url_for('employees') }}">Cancelar</a>
-        <button type="submit" class="btn primary">Cadastrar colaborador</button>
+    <fieldset class="card form-section">
+      <legend class="form-section__title">{{ icon('user') }} Dados pessoais</legend>
+      <div class="form-grid">
+        {{ text_field('full_name', 'Nome completo', 'Digite o nome completo', cols='form-field--span-2', autocomplete='name') }}
+        {{ text_field('birth_date', 'Data de nascimento', type='date', autocomplete='bday') }}
+        {{ text_field('cpf', 'CPF', '00000000000', inputmode='numeric', pattern='[0-9]{11}', maxlength='11', title='Informe os 11 dígitos do CPF, sem pontuação.') }}
+        {{ select_field('gender', 'Gênero', [('M', 'Masculino'), ('F', 'Feminino'), ('Outro', 'Outro')]) }}
+        {{ text_field('corporative_email', 'E-mail corporativo', 'email@exemplo.com', type='email', cols='form-field--span-2', autocomplete='email') }}
+        {{ text_field('phone_number', 'Telefone', '11999999999', type='tel', inputmode='numeric', pattern='[0-9]{11}', maxlength='11', autocomplete='tel-national', title='Informe o DDD e o número, com 11 dígitos e sem pontuação.') }}
       </div>
-    </form>
-  </main>
-</div>
+    </fieldset>
 
-<script>
-  // ---------- Input masks ----------
-  const onlyDigits = v => v.replace(/\D/g, '');
+    <fieldset class="card form-section">
+      <legend class="form-section__title">{{ icon('lock') }} Dados de acesso</legend>
+      <div class="form-grid">
+        {{ text_field('register_code', 'Matrícula', 'Código de registro', cols='form-field--span-2', autocomplete='off') }}
+        {{ text_field('password', 'Senha provisória', 'Mínimo de 8 caracteres', type='password', minlength='8', autocomplete='new-password') }}
+        {{ select_field('access_level', 'Nível de acesso', [(0, 'Colaborador'), (1, 'Gestor'), (2, 'Administrador')]) }}
+      </div>
+    </fieldset>
 
-  function mask(el, fn) {
-    if (!el) return;
-    el.addEventListener('input', () => { el.value = fn(onlyDigits(el.value)); });
-    if (el.value) el.value = fn(onlyDigits(el.value));
-  }
+    <fieldset class="card form-section">
+      <legend class="form-section__title">{{ icon('briefcase') }} Dados profissionais</legend>
+      <div class="form-grid">
+        {{ text_field('role', 'Cargo', 'Digite o cargo', autocomplete='organization-title') }}
+        {{ text_field('department', 'Departamento', 'Digite o departamento') }}
+        {{ select_field('contract_type', 'Tipo de contrato', [('CLT', 'CLT'), ('PJ', 'PJ'), ('Estágio', 'Estágio'), ('Temporário', 'Temporário'), ('Aprendiz', 'Aprendiz')], cols='form-field--span-2') }}
+        {{ text_field('admission_date', 'Data de admissão', type='date') }}
+        {{ text_field('salary_value', 'Salário (R$)', '0,00', type='number', min='0.01', step='0.01') }}
+        {{ text_field('weekly_workload', 'Carga horária semanal', '44', type='number', min='1', max='44', step='1', note='Informe a quantidade de horas por semana.') }}
+        {{ select_field('work_shift', 'Turno', [('Manhã', 'Manhã'), ('Tarde', 'Tarde'), ('Noite', 'Noite'), ('Integral', 'Integral')]) }}
+      </div>
+    </fieldset>
 
-  mask(document.getElementById('cpf'), d =>
-    d.slice(0, 11)
-     .replace(/(\d{3})(\d)/, '$1.$2')
-     .replace(/(\d{3})(\d)/, '$1.$2')
-     .replace(/(\d{3})(\d{1,2})$/, '$1-$2'));
+    <fieldset class="card form-section">
+      <legend class="form-section__title">{{ icon('pin') }} Endereço</legend>
+      <div class="form-grid">
+        {{ text_field('cep', 'CEP', '00000000', inputmode='numeric', pattern='[0-9]{8}', maxlength='8', autocomplete='postal-code', title='Informe os 8 dígitos do CEP, sem pontuação.') }}
+        {{ text_field('street', 'Endereço', 'Digite o endereço', cols='form-field--span-2', autocomplete='address-line1') }}
+        {{ text_field('number', 'Número', 'Número do imóvel') }}
+        {{ text_field('complement', 'Complemento', 'Opcional', required=false, cols='form-field--span-2', autocomplete='address-line2') }}
+        {{ text_field('neighborhood', 'Bairro', 'Digite o bairro', cols='form-field--span-2') }}
+        {{ text_field('city', 'Cidade', 'Digite a cidade', cols='form-field--span-2', autocomplete='address-level2') }}
+        {% set states = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'] %}
+        {% set state_options = [] %}
+        {% for state in states %}{% set _ = state_options.append((state, state)) %}{% endfor %}
+        {{ select_field('state', 'Estado', state_options, cols='form-field--span-2') }}
+      </div>
+    </fieldset>
 
-  mask(document.getElementById('cep'), d =>
-    d.slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'));
+    <fieldset class="card form-section" aria-describedby="schedule-help">
+      <legend class="form-section__title">{{ icon('calcheck') }} Escala semanal</legend>
+      <p class="form-hint" id="schedule-help">Marque pelo menos um dia de trabalho e preencha seus horários. Os horários dos dias desmarcados serão ignorados.</p>
+      {% set days = [('monday', 'Segunda-feira'), ('tuesday', 'Terça-feira'), ('wednesday', 'Quarta-feira'), ('thursday', 'Quinta-feira'), ('friday', 'Sexta-feira'), ('saturday', 'Sábado'), ('sunday', 'Domingo')] %}
+      {% set time_fields = [('clock_in', 'Hora de entrada', '08:00'), ('break_start', 'Início do intervalo', '12:00'), ('break_end', 'Fim do intervalo', '13:00'), ('clock_out', 'Hora de saída', '18:00')] %}
+      <div class="employee-schedule">
+        <div class="schedule-grid">
+        {% for day, label in days %}
+          {% set active_name = 'schedule[' ~ day ~ '][active]' %}
+          {% set active = request.form.get(active_name) if request.method == 'POST' else loop.index <= 5 %}
+          <section class="schedule-day" aria-labelledby="{{ day }}-title">
+            <div class="schedule-day__header">
+              <h3 class="schedule-day__title" id="{{ day }}-title">{{ icon('calendar') }} {{ label }}</h3>
+              <label class="day-switch" for="{{ day }}-active">
+                <input type="checkbox" id="{{ day }}-active" name="{{ active_name }}" value="on" aria-label="Ativo: {{ label }}" aria-controls="{{ day }}-times" {% if active %}checked{% endif %}>
+                <span class="day-switch__track" aria-hidden="true"></span>
+                <span>Ativo</span>
+              </label>
+            </div>
+            <div class="schedule-day__body" id="{{ day }}-times">
+              {% for field, text, default in time_fields %}
+                {% set name = 'schedule[' ~ day ~ '][' ~ field ~ ']' %}
+                <div class="time-row">
+                  <label for="{{ day }}-{{ field }}">{{ icon('clock') }} {{ text }}</label>
+                  <input type="time" id="{{ day }}-{{ field }}" name="{{ name }}" value="{{ request.form.get(name, '') if request.method == 'POST' else default }}">
+                </div>
+              {% endfor %}
+            </div>
+          </section>
+        {% endfor %}
+        </div>
+      </div>
+    </fieldset>
 
-  mask(document.getElementById('phone_number'), d => {
-    d = d.slice(0, 11);
-    if (d.length <= 2) return d ? '(' + d : '';
-    if (d.length <= 6) return d.replace(/(\d{2})(\d+)/, '($1) $2');
-    if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d+)/, '($1) $2-$3');
-    return d.replace(/(\d{2})(\d{5})(\d+)/, '($1) $2-$3');
-  });
-
-  // ---------- Address autofill by CEP (ViaCEP) ----------
-  const cepInput = document.getElementById('cep');
-  cepInput.addEventListener('blur', async () => {
-    const cep = onlyDigits(cepInput.value);
-    if (cep.length !== 8) return;
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-      const data = await res.json();
-      if (data.erro) return;
-      document.getElementById('street').value = data.logradouro || '';
-      document.getElementById('neighborhood').value = data.bairro || '';
-      document.getElementById('city').value = data.localidade || '';
-      document.getElementById('state').value = data.uf || '';
-      document.getElementById('number').focus();
-    } catch (e) { /* offline: the user fills the address manually */ }
-  });
-</script>
-</body>
-</html>
+    <div class="employee-actions">
+      <a class="btn" href="{{ url_for('employees') }}">Cancelar</a>
+      <button class="btn btn--primary" type="submit">{{ icon('save') }} Cadastrar colaborador</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
