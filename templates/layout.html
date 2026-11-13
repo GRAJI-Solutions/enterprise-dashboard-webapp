@@ -46,7 +46,7 @@
 
           <a
             href="{{ url_for('dashboard') }}"
-            class="nav-link {% if pagina == 'dashboard' %}nav-link--active{% endif %}"
+            class="nav-link {% if current_page == 'dashboard' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3 2 12h3v9h5v-6h4v6h5v-9h3z" />
@@ -55,8 +55,8 @@
           </a>
 
           <a
-            href="{{ url_for('attendence') }}"
-            class="nav-link {% if pagina == 'bater_ponto' %}nav-link--active{% endif %}"
+            href="{{ url_for('attendance') }}"
+            class="nav-link {% if current_page == 'attendance' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="9" fill="none" stroke-width="2" />
@@ -73,7 +73,7 @@
           {% if session["access_level"] >= 1 %}
           <a
             href="{{ url_for('employees') }}"
-            class="nav-link {% if pagina == 'colaboradores' %}nav-link--active{% endif %}"
+            class="nav-link {% if current_page == 'employees' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="8" r="4" />
@@ -85,7 +85,7 @@
           {% if session["access_level"] == 2 %}
           <a
             href="{{ url_for('dashboard_enterprise') }}"
-            class="nav-link {% if pagina == 'corporacao' %}nav-link--active{% endif %}"
+            class="nav-link {% if current_page == 'dashboard_enterprise' %}nav-link--active{% endif %}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -115,7 +115,7 @@
         </a>
       </aside>
 
-      <!-- ======================= CONTEÚDO ======================= -->
+      <!-- ======================= CONTENT ======================= -->
       <main class="content">{% block main %} {% endblock %}</main>
     </div>
 

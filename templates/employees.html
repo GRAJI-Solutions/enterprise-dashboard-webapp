@@ -76,12 +76,12 @@
         {% for employee in employees %}
         <tr class="employees__row employees__row--linked">
           <td data-label="Nome">
-            <a class="employees__profile-link" href="{{ url_for('employee_details', employee_id=employee['id']) }}" aria-label="Ver colaborador {{ employee['nome'] }}">{{ employee['nome'] }}</a>
+            <a class="employees__profile-link" href="{{ url_for('employee_details', employee_id=employee['id']) }}" aria-label="Ver colaborador {{ employee['name'] }}">{{ employee['name'] }}</a>
           </td>
 
           <td data-label="Telefone">
-            {% if employee['telefone'] %}
-              {% for number in (employee['telefone'] | string).split(' / ') %}
+            {% if employee['phone_number'] %}
+              {% for number in (employee['phone_number'] | string).split(' / ') %}
               <span class="employees__phone">{{ format_phone(number) }}</span>
               {% endfor %}
             {% else %}
@@ -90,7 +90,7 @@
           </td>
 
           <td data-label="E-mail">{{ employee['email'] or 'Não informado' }}</td>
-          <td data-label="Turno">{{ employee['turno'] or 'Não informado' }}</td>
+          <td data-label="Turno">{{ employee['work_shift'] or 'Não informado' }}</td>
         </tr>
         {% else %}
         <tr class="employees__empty">

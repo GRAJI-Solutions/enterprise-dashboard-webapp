@@ -26,18 +26,15 @@ def sqlexecute(query, *args):
     
     cursor.execute(query, args)
     
-    result = None
-    query_clean = query.strip().upper()
-    
-    if query_clean.startswith("SELECT"):
+    # Check whether the cursor returned rows, including for queries that start with WITH.
+    if cursor.description is not None:
         result = [dict(row) for row in cursor.fetchall()]
+    elif query.lstrip().upper().startswith("INSERT"):
+        result = cursor.lastrowid
     else:
-        conn.commit()
-        if query_clean.startswith("INSERT"):
-            result = cursor.lastrowid
-        else:
-            result =  cursor.rowcount
-            
+        result = cursor.rowcount
+
+    conn.commit()
     conn.close()
     return result
 
@@ -63,7 +60,7 @@ def level_required(required_level):
             result = sqlexecute("SELECT nivel_acesso FROM login WHERE id_login = ?",user_id)
 
             if not result or int(result[0]["nivel_acesso"]) < required_level:
-                return httperror("Você não tem permissão para acessar esta página.", 403)
+                return httperror("Você não tem permissão para acessar esta página.", 403), 403
 
             return f(*args, **kwargs)
 
