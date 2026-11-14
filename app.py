@@ -27,7 +27,6 @@ from flask import (
     session,
     url_for,
 )
-
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from flask_session import Session
@@ -368,7 +367,16 @@ def latest_employee_punch(employee_id, now):
     return f'{day_label} às {latest:%H:%M}'
 
 
-def calculate_vacation_days(admission_date, today):
+def completed_service_months(hired_on, reference_date):
+    completed_months = (reference_date.year - hired_on.year) * 12 + reference_date.month - hired_on.month
+    # Use the last day of the month if the original hire day does not exist.
+    anniversary_day = min(hired_on.day, monthrange(reference_date.year, reference_date.month)[1])
+    if reference_date.day < anniversary_day:
+        completed_months -= 1
+    return completed_months
+
+
+def calculate_vacation_days(employee_id, admission_date, today):
     if not admission_date:
         return 0
 
@@ -376,15 +384,34 @@ def calculate_vacation_days(admission_date, today):
         hired_on = date.fromisoformat(admission_date)
     except ValueError:
         return 0
+    if hired_on > today:
+        return 0
 
-    completed_months = (today.year - hired_on.year) * 12 + today.month - hired_on.month
-    # Use the last day of the month if the original hire day does not exist.
-    anniversary_day = min(hired_on.day, monthrange(today.year, today.month)[1])
-    if today.day < anniversary_day:
-        completed_months -= 1
+    approved_vacations = sqlexecute(
+        '''
+        SELECT data_inicio, dias_solicitados FROM ferias
+        WHERE id_colaborador = ? AND status = 'Aprovada'
+            AND data_inicio >= ? AND data_solicitacao <= ? AND dias_solicitados IS NOT NULL
+        ORDER BY data_inicio
+        ''',
+        employee_id, admission_date, today.isoformat(),
+    )
 
-    # Accrue five half-days per complete month and show only whole days.
-    return max(0, completed_months) * 5 // 2
+    # Keep half-days so an unused fraction carries into the next month.
+    monthly_credit = 5
+    balance_limit = 30 * 2
+    balance = credited_months = 0
+    for vacation in approved_vacations:
+        # Debit past vacations on their start date and reserve future approved days today.
+        debit_date = min(date.fromisoformat(vacation['data_inicio']), today)
+        service_months = completed_service_months(hired_on, debit_date)
+        balance = min(balance_limit, balance + (service_months - credited_months) * monthly_credit)
+        balance -= vacation['dias_solicitados'] * 2
+        credited_months = service_months
+
+    service_months = completed_service_months(hired_on, today)
+    balance = min(balance_limit, balance + (service_months - credited_months) * monthly_credit)
+    return int(max(0, balance) // 2)
 
 
 def employee_dashboard_metrics(employee_id, now):
@@ -458,7 +485,7 @@ def employee_dashboard_metrics(employee_id, now):
         'work_schedule': work_schedule,
         'late_arrivals': late_arrivals,
         'occupation': profile.get('cargo') or 'Não informada',
-        'vacation_days': calculate_vacation_days(profile.get('data_admissao'), today),
+        'vacation_days': calculate_vacation_days(employee_id, profile.get('data_admissao'), today),
     }
 
 
@@ -1163,4 +1190,3 @@ def favicon():
         os.path.join(app.root_path, 'static'),
         'favicon.ico',
     )
-
