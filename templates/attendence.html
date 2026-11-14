@@ -5,6 +5,10 @@
 <h1 class="page-title">Bater Ponto</h1>
 <p class="page-subtitle">Registre seu ponto de entrada, saída e intervalos.</p>
 
+{% for message in get_flashed_messages(category_filter=['attendance-success']) %}
+  <p class="page-subtitle text-green" role="status">{{ message }}</p>
+{% endfor %}
+
 <div class="ponto">
 
   <section class="card ponto__registrar">
@@ -16,17 +20,24 @@
 
     <div class="relogio">
       <span class="relogio__label">Horário atual</span>
-      <span class="relogio__hora" id="clock-time">--:--:--</span>
+      <span class="relogio__hora" id="clock-time">{{ server_now.strftime('%H:%M:%S') }}</span>
       <span class="relogio__data" id="clock-date"></span>
       <span class="relogio__data" id="clock-weekday"></span>
     </div>
 
-    <form method="post">
+    {% if is_previous_day %}
+      <p class="ponto__proximo">Jornada iniciada em {{ work_date.strftime('%d/%m/%Y') }}.</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('attendance') }}">
       {% if next_entry %}
+        <input type="hidden" name="attendance_token" value="{{ session['attendance_token'] }}">
+        <input type="hidden" name="attendance_action" value="{{ next_action }}">
+        <input type="hidden" name="work_date" value="{{ work_date.isoformat() }}">
         <button type="submit" class="btn btn--primary">Bater ponto agora</button>
         <p class="ponto__proximo">Próximo registro: {{ next_entry }}</p>
       {% else %}
-        <button type="button" class="btn btn--primary" disabled>Ponto do dia completo</button>
+        <button type="button" class="btn btn--primary" disabled>Jornada concluída</button>
       {% endif %}
     </form>
     <p class="ponto__seguro">Seu ponto registrado com segurança</p>
@@ -61,11 +72,11 @@
       </div>
     </div>
 
-    <div class="linha-info"><span>Jornada de hoje</span><span>{{ worked_hours }}</span></div>
+    <div class="linha-info"><span>{{ 'Jornada anterior' if is_previous_day else 'Jornada de hoje' }}</span><span id="worked-hours">{{ worked_hours }}</span></div>
     <div class="linha-info"><span>Horas esperadas</span><span>{{ expected_hours }}</span></div>
     <div class="linha-info">
       <span>Saldo do dia</span>
-      <span class="{{ 'text-red' if is_balance_negative else 'text-green' }}">{{ daily_balance }}</span>
+      <span id="daily-balance" class="{{ 'text-red' if is_balance_negative else 'text-green' }}">{{ daily_balance }}</span>
     </div>
   </section>
 
@@ -92,6 +103,9 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if attendance_history %}
+      <p class="ponto__proximo">Últimos 10 registros. Saldos calculados com a escala atual.</p>
+    {% endif %}
   </section>
 
 </div>
@@ -103,11 +117,35 @@
     const timeElement = document.getElementById('clock-time');
     const dateElement = document.getElementById('clock-date');
     const weekdayElement = document.getElementById('clock-weekday');
+    const workedElement = document.getElementById('worked-hours');
+    const balanceElement = document.getElementById('daily-balance');
+    const serverTime = Date.parse({{ server_now.isoformat() | tojson }});
+    const startedAt = performance.now();
+    const timeZone = 'America/Sao_Paulo';
+    const summary = {{ live_summary | tojson }};
+
+    function formatDuration(minutes, signed = false) {
+      const prefix = minutes < 0 ? '-' : (signed && minutes > 0 ? '+' : '');
+      const absolute = Math.abs(minutes);
+      const hours = String(Math.floor(absolute / 60)).padStart(2, '0');
+      const rest = String(absolute % 60).padStart(2, '0');
+      return `${prefix}${hours}:${rest}`;
+    }
+
     function updateClock() {
-      const now = new Date();
-      timeElement.textContent = now.toLocaleTimeString('pt-BR', { hour12: false });
-      dateElement.textContent = now.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
-      weekdayElement.textContent = now.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const now = new Date(serverTime + performance.now() - startedAt);
+      timeElement.textContent = now.toLocaleTimeString('pt-BR', { timeZone, hourCycle: 'h23' });
+      dateElement.textContent = now.toLocaleDateString('pt-BR', { timeZone, day: 'numeric', month: 'long', year: 'numeric' });
+      weekdayElement.textContent = now.toLocaleDateString('pt-BR', { timeZone, weekday: 'long' });
+      if (summary.running) {
+        const elapsedMinutes = Math.floor(now.getTime() / 60000) - Math.floor(serverTime / 60000);
+        const worked = summary.worked + elapsedMinutes;
+        const balance = worked - summary.expected;
+        workedElement.textContent = formatDuration(worked);
+        balanceElement.textContent = formatDuration(balance, true);
+        balanceElement.classList.toggle('text-red', balance < 0);
+        balanceElement.classList.toggle('text-green', balance >= 0);
+      }
     }
     updateClock();
     setInterval(updateClock, 1000);

@@ -37,7 +37,17 @@
       <span class="card__title">Salário Atual</span>
     </div>
     <div class="card__inner card__inner--center">
-      <span class="kpi--lg">R$:<br>{{ salary or '—' }}</span>
+      {% if salary %}
+      <span class="kpi--lg">
+        R$:<br><span id="salary-mask" aria-hidden="true">••••••</span><span id="salary-value" hidden>{{ salary }}</span>
+      </span>
+      <button class="btn btn--sm" type="button" id="salary-toggle" aria-controls="salary-value" aria-expanded="false">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span id="salary-toggle-label">Mostrar salário</span>
+      </button>
+      {% else %}
+      <span class="kpi--lg">R$:<br>—</span>
+      {% endif %}
     </div>
   </section>
 
@@ -83,7 +93,6 @@
     <span class="text-accent">Férias</span>
     <p class="ferias__texto">• Atualmente você possui <span class="text-accent">{{ vacation_days }}</span> dias de férias</p>
     <div class="ferias__acoes">
-      <a href="#" class="btn btn--sm">Solicitar agora →</a>
       <a href="#" class="link">Política de férias</a>
     </div>
   </section>
@@ -95,5 +104,28 @@
 <script>
   const hoursChart = {{ hours_chart | default({'labels': [], 'values': []}) | tojson }};
   drawBarChart(document.getElementById('hours-chart'), hoursChart, 'Horas');
+</script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  (() => {
+    const toggle = document.getElementById('salary-toggle');
+    if (!toggle) return;
+
+    const value = document.getElementById('salary-value');
+    const mask = document.getElementById('salary-mask');
+    const label = document.getElementById('salary-toggle-label');
+
+    // Reveal the value only after the viewer uses the toggle.
+    toggle.addEventListener('click', () => {
+      const showSalary = value.hidden;
+      value.hidden = !showSalary;
+      mask.hidden = showSalary;
+      toggle.setAttribute('aria-expanded', String(showSalary));
+      label.textContent = showSalary ? 'Ocultar salário' : 'Mostrar salário';
+    });
+  })();
 </script>
 {% endblock %}

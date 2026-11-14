@@ -1,21 +1,13 @@
 import math
 import os
 import re
+import secrets
 import sqlite3
-from datetime import date
-
-from flask import (
-    Flask,
-    g,
-    redirect,
-    render_template,
-    request,
-    send_from_directory,
-    session,
-    url_for,
-)
-from flask_session import Session
-from werkzeug.security import check_password_hash, generate_password_hash
+from calendar import monthrange
+from datetime import date, datetime, time, timedelta
+from threading import Lock, Thread
+from time import sleep
+from zoneinfo import ZoneInfo
 
 from helpers.dashboard_charts import (
     absences_last_five_months,
@@ -24,6 +16,21 @@ from helpers.dashboard_charts import (
     hours_last_eight_weeks,
     monthly_hours_change,
 )
+from flask import (
+    Flask,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
+
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from flask_session import Session
 from helpers.helpers import httperror, level_required, login_required, sqlexecute
 
 app = Flask(__name__)
@@ -99,10 +106,28 @@ def login():
 
 
 def render_employee_dashboard(employee_id, *, reviewed_employee_name=None):
+    now = attendance_now()
+    today = now.date().isoformat()
+    salary_rows = sqlexecute(
+        '''
+        SELECT valor FROM historico_salarial
+        WHERE colaborador_id_colaborador = ? AND data_inicio <= ?
+            AND (data_fim IS NULL OR data_fim >= ?)
+        ORDER BY data_inicio DESC, id_historico_salarial DESC LIMIT 1
+        ''',
+        employee_id, today, today,
+    )
+    salary = None
+    if salary_rows:
+        # Format the current salary for display without changing the stored value.
+        salary = f"{salary_rows[0]['valor']:,.2f}".translate(str.maketrans(',.', '.,'))
+
     return render_template(
         'dashboard.html',
         hours_chart=hours_last_eight_weeks(employee_id),
         reviewed_employee_name=reviewed_employee_name,
+        salary=salary,
+        **employee_dashboard_metrics(employee_id, now),
     )
 
 
@@ -137,15 +162,441 @@ def employee_dashboard(employee_id):
     )
 
 
+ATTENDANCE_TIMEZONE = ZoneInfo('America/Sao_Paulo')
+ATTENDANCE_WEEKDAYS = ('Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo')
+ATTENDANCE_STEPS = (
+    ('clock_in', 'hora_entrada', 'Entrada'),
+    ('break_start', 'inicio_intervalo', 'Início do intervalo'),
+    ('break_end', 'fim_intervalo', 'Fim do intervalo'),
+    ('clock_out', 'hora_saida', 'Saída'),
+)
+attendance_closer_lock = Lock()
+attendance_closer_thread = None
+
+
+def attendance_now():
+    return datetime.now(ATTENDANCE_TIMEZONE)
+
+
+def clock_minutes(value):
+    return int(value[:2]) * 60 + int(value[3:5])
+
+
+def minutes_since_clock_in(value, clock_in):
+    # A smaller clock value belongs to the following day of the same shift.
+    return (clock_minutes(value) - clock_minutes(clock_in)) % (24 * 60)
+
+
+def close_expired_attendance(now, *, employee_id=None):
+    """Close unfinished shifts at their scheduled end without creating rows."""
+    # Use the schedule for the date of the original clock-in, not today's schedule.
+    open_entries = sqlexecute(
+        '''
+        SELECT p.id_ponto, p.data, p.hora_entrada, p.inicio_intervalo, p.fim_intervalo,
+               e.hora_entrada AS scheduled_start, e.hora_saida AS scheduled_end
+        FROM ponto p
+        JOIN escala e ON e.id_colaborador = p.id_colaborador
+            AND e.dia_semana = CASE strftime('%w', p.data)
+                WHEN '0' THEN 'Domingo' WHEN '1' THEN 'Segunda'
+                WHEN '2' THEN 'Terça' WHEN '3' THEN 'Quarta'
+                WHEN '4' THEN 'Quinta' WHEN '5' THEN 'Sexta' WHEN '6' THEN 'Sábado'
+            END
+        WHERE p.data < ? AND p.hora_entrada IS NOT NULL AND p.hora_saida IS NULL
+            AND e.hora_entrada IS NOT NULL AND e.hora_saida IS NOT NULL
+            AND (? IS NULL OR p.id_colaborador = ?)
+        ''',
+        now.date().isoformat(), employee_id, employee_id,
+    )
+
+    for entry in open_entries:
+        work_date = date.fromisoformat(entry['data'])
+        midnight = datetime.combine(work_date + timedelta(days=1), time.min, ATTENDANCE_TIMEZONE)
+        scheduled_end = datetime.combine(
+            work_date, time.fromisoformat(entry['scheduled_end']), ATTENDANCE_TIMEZONE,
+        )
+        if entry['scheduled_end'] < entry['scheduled_start']:
+            scheduled_end += timedelta(days=1)
+
+        # A night shift may still be in progress at midnight.
+        if now < max(midnight, scheduled_end):
+            continue
+
+        clock_in = entry['hora_entrada']
+        clock_in_at = datetime.combine(work_date, time.fromisoformat(clock_in), ATTENDANCE_TIMEZONE)
+        scheduled_minutes = (scheduled_end - clock_in_at).total_seconds() / 60
+        # Never backdate a clock-out before a punch or close a shift the schema cannot represent.
+        if not 0 <= scheduled_minutes < 1440 or any(
+            entry[column] and minutes_since_clock_in(entry[column], clock_in) > scheduled_minutes
+            for column in ('inicio_intervalo', 'fim_intervalo')
+        ):
+            continue
+
+        # Check the original punches so concurrent workers cannot overwrite a manual clock-out.
+        sqlexecute(
+            '''
+            UPDATE ponto SET hora_saida = ? WHERE id_ponto = ? AND hora_saida IS NULL
+                AND hora_entrada IS ? AND inicio_intervalo IS ? AND fim_intervalo IS ?
+            ''',
+            entry['scheduled_end'], entry['id_ponto'], clock_in,
+            entry['inicio_intervalo'], entry['fim_intervalo'],
+        )
+
+
+def run_attendance_closer():
+    while True:
+        try:
+            close_expired_attendance(attendance_now())
+        except sqlite3.DatabaseError:
+            app.logger.exception('Failed to close expired attendance entries')
+
+        # Run again at the next minute boundary, including local midnight.
+        now = attendance_now()
+        sleep(60 - now.second - now.microsecond / 1_000_000)
+
+
+@app.before_request
+def start_attendance_closer():
+    global attendance_closer_thread
+    if app.testing or attendance_closer_thread is not None:
+        return
+
+    # Start once per serving process, not at import time or in the Flask reloader parent.
+    with attendance_closer_lock:
+        if attendance_closer_thread is None:
+            attendance_closer_thread = Thread(target=run_attendance_closer, daemon=True)
+            attendance_closer_thread.start()
+
+
+def attendance_worked_minutes(entry, elapsed=None):
+    clock_in = entry.get('hora_entrada')
+    if not clock_in:
+        return None
+
+    clock_out = entry.get('hora_saida')
+    end = minutes_since_clock_in(clock_out, clock_in) if clock_out else elapsed
+    if end is None:
+        return None
+
+    break_start = entry.get('inicio_intervalo')
+    break_end = entry.get('fim_intervalo')
+    if not break_start:
+        return end if not break_end else None
+
+    start = minutes_since_clock_in(break_start, clock_in)
+    if not break_end:
+        # The worked total stops increasing while the employee is on a break.
+        return start if not clock_out and start <= end else None
+
+    finish = minutes_since_clock_in(break_end, clock_in)
+    return end - (finish - start) if start <= finish <= end else None
+
+
+def format_attendance_duration(minutes, *, signed=False):
+    prefix = '-' if minutes < 0 else ('+' if signed and minutes > 0 else '')
+    hours, remaining_minutes = divmod(abs(minutes), 60)
+    return f'{prefix}{hours:02d}:{remaining_minutes:02d}'
+
+
+def next_attendance_step(entry, schedule):
+    if entry.get('hora_saida'):
+        return None
+
+    has_break = (
+        (schedule.get('inicio_intervalo') and schedule.get('fim_intervalo'))
+        or entry.get('inicio_intervalo') or entry.get('fim_intervalo')
+    )
+    for action, column, label in ATTENDANCE_STEPS:
+        if action in ('break_start', 'break_end') and not has_break:
+            continue
+        if not entry.get(column):
+            return action, column, label
+    return None
+
+
+def attendance_work_date(now, entries_by_date, schedules):
+    today = now.date()
+    if today in entries_by_date:
+        return today
+
+    yesterday = today - timedelta(days=1)
+    previous_entry = entries_by_date.get(yesterday, {})
+    previous_schedule = schedules.get(ATTENDANCE_WEEKDAYS[yesterday.weekday()], {})
+    planned_start = previous_schedule.get('hora_entrada')
+    planned_end = previous_schedule.get('hora_saida')
+    clock_in = previous_entry.get('hora_entrada')
+    if not (planned_start and planned_end and planned_end < planned_start and clock_in):
+        return today
+
+    clock_out = previous_entry.get('hora_saida')
+    today_start = schedules.get(ATTENDANCE_WEEKDAYS[today.weekday()], {}).get('hora_entrada')
+    cutoff = clock_minutes(clock_in)
+    if today_start and today_start >= planned_end:
+        cutoff = min(cutoff, clock_minutes(today_start))
+    if (not clock_out or clock_out < clock_in) and clock_minutes(now.strftime('%H:%M')) < cutoff:
+        return yesterday
+    return today
+
+
+def latest_employee_punch(employee_id, now):
+    # Check both recent work dates because a night shift can end the next morning.
+    rows = sqlexecute(
+        '''
+        SELECT data, hora_entrada, inicio_intervalo, fim_intervalo, hora_saida
+        FROM ponto WHERE id_colaborador = ? AND data <= ?
+            AND coalesce(hora_entrada, inicio_intervalo, fim_intervalo, hora_saida) IS NOT NULL
+        ORDER BY data DESC LIMIT 2
+        ''',
+        employee_id, now.date().isoformat(),
+    )
+    latest = None
+    for row in rows:
+        work_date = date.fromisoformat(row['data'])
+        clock_in = row['hora_entrada']
+        for _, column, _ in ATTENDANCE_STEPS:
+            value = row[column]
+            if not value:
+                continue
+            punch_date = work_date + timedelta(days=1) if clock_in and value < clock_in else work_date
+            punch = datetime.combine(punch_date, time.fromisoformat(value), now.tzinfo)
+            if punch <= now and (latest is None or punch > latest):
+                latest = punch
+
+    if latest is None:
+        return None
+    day_offset = (now.date() - latest.date()).days
+    day_label = {0: 'Hoje', 1: 'Ontem'}.get(day_offset, f'{latest:%d/%m/%Y}')
+    return f'{day_label} às {latest:%H:%M}'
+
+
+def calculate_vacation_days(admission_date, today):
+    if not admission_date:
+        return 0
+
+    try:
+        hired_on = date.fromisoformat(admission_date)
+    except ValueError:
+        return 0
+
+    completed_months = (today.year - hired_on.year) * 12 + today.month - hired_on.month
+    # Use the last day of the month if the original hire day does not exist.
+    anniversary_day = min(hired_on.day, monthrange(today.year, today.month)[1])
+    if today.day < anniversary_day:
+        completed_months -= 1
+
+    # Accrue five half-days per complete month and show only whole days.
+    return max(0, completed_months) * 5 // 2
+
+
+def employee_dashboard_metrics(employee_id, now):
+    today = now.date()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    profile_rows = sqlexecute(
+        '''
+        SELECT d.cargo, d.carga_horaria_semanal_contrato, d.data_admissao
+        FROM colaborador c
+        JOIN dados_profissionais d ON d.id_dados_profissionais = c.id_dados_profissionais
+        WHERE c.id_colaborador = ?
+        ''',
+        employee_id,
+    )
+    profile = profile_rows[0] if profile_rows else {}
+    schedules = {row['dia_semana']: row for row in sqlexecute(
+        '''
+        SELECT dia_semana, hora_entrada, inicio_intervalo, fim_intervalo, hora_saida
+        FROM escala WHERE id_colaborador = ? AND hora_entrada IS NOT NULL AND hora_saida IS NOT NULL
+        ''',
+        employee_id,
+    )}
+    rows = sqlexecute(
+        '''
+        SELECT data, hora_entrada, inicio_intervalo, fim_intervalo, hora_saida
+        FROM ponto WHERE id_colaborador = ? AND data BETWEEN ? AND ? AND hora_entrada IS NOT NULL
+        ''',
+        employee_id, min(week_start, month_start).isoformat(), today.isoformat(),
+    )
+    entries_by_date = {date.fromisoformat(row['data']): row for row in rows}
+    active_date = attendance_work_date(now, entries_by_date, schedules)
+
+    worked_minutes = late_arrivals = 0
+    for work_date, row in entries_by_date.items():
+        schedule = schedules.get(ATTENDANCE_WEEKDAYS[work_date.weekday()])
+        clock_in = row['hora_entrada']
+        # Count one late arrival per scheduled date, using the first punch.
+        if work_date >= month_start and schedule and clock_in > schedule['hora_entrada']:
+            late_arrivals += 1
+        if work_date < week_start:
+            continue
+
+        elapsed = None
+        if work_date == active_date and not row['hora_saida']:
+            minutes = (today - work_date).days * 1440 + now.hour * 60 + now.minute - clock_minutes(clock_in)
+            if 0 <= minutes < 1440:
+                elapsed = minutes
+        worked_minutes += attendance_worked_minutes(row, elapsed) or 0
+
+    # Use planned hours as a fallback when older profiles have no contract hours.
+    contract_hours = profile.get('carga_horaria_semanal_contrato')
+    weekly_minutes = int(contract_hours * 60) if contract_hours is not None else sum(
+        attendance_worked_minutes(schedule) or 0 for schedule in schedules.values()
+    )
+    work_schedule = []
+    for index, weekday in enumerate(ATTENDANCE_WEEKDAYS):
+        schedule = schedules.get(weekday)
+        work_schedule.append({
+            'label': weekday[:3],
+            'is_today': index == today.weekday(),
+            'color': 'green' if schedule else 'gray',
+            'time_range': f"{schedule['hora_entrada']} – {schedule['hora_saida']}" if schedule else '—',
+            'status': 'Escalado' if schedule else 'Folga',
+        })
+
+    return {
+        'total_hours': format_attendance_duration(weekly_minutes),
+        'remaining_hours': format_attendance_duration(max(0, weekly_minutes - worked_minutes)),
+        'last_clock_entry': latest_employee_punch(employee_id, now),
+        'work_schedule': work_schedule,
+        'late_arrivals': late_arrivals,
+        'occupation': profile.get('cargo') or 'Não informada',
+        'vacation_days': calculate_vacation_days(profile.get('data_admissao'), today),
+    }
+
+
 @app.route('/attendence', methods=['GET', 'POST'])
 @login_required
 def attendance():
-    if request.method == 'POST':
-        action = request.form.get('attendence_action')
-        
-        return redirect('/attendence')
+    employee_rows = sqlexecute(
+        'SELECT id_colaborador FROM colaborador WHERE id_login = ?', session['user_id'],
+    )
+    if not employee_rows:
+        return httperror('Colaborador não encontrado.', 404), 404
 
-    return render_template('attendence.html')
+    employee_id = employee_rows[0]['id_colaborador']
+    now = attendance_now()
+
+    if request.method == 'POST':
+        token = session.get('attendance_token')
+        submitted_token = request.form.get('attendance_token', '')
+        if not token or not secrets.compare_digest(token.encode(), submitted_token.encode()):
+            return httperror('Formulário inválido. Atualize a página e tente novamente.', 403), 403
+
+    # Catch up before reading the form state if the server was offline at closing time.
+    try:
+        close_expired_attendance(now, employee_id=employee_id)
+    except sqlite3.DatabaseError:
+        app.logger.exception('Failed to close expired attendance entries')
+        return httperror('Não foi possível atualizar o ponto. Tente novamente.', 500), 500
+
+    schedules = {
+        row['dia_semana']: row for row in sqlexecute('SELECT * FROM escala WHERE id_colaborador = ?', employee_id)
+    }
+    entries = sqlexecute(
+        'SELECT * FROM ponto WHERE id_colaborador = ? AND data <= ? ORDER BY data DESC LIMIT 10',
+        employee_id, now.date().isoformat(),
+    )
+    entries_by_date = {date.fromisoformat(row['data']): row for row in entries}
+    work_date = attendance_work_date(now, entries_by_date, schedules)
+    entry = entries_by_date.get(work_date, {})
+    schedule = schedules.get(ATTENDANCE_WEEKDAYS[work_date.weekday()], {})
+    next_step = next_attendance_step(entry, schedule)
+
+    current_time = now.strftime('%H:%M')
+    clock_in = entry.get('hora_entrada')
+    elapsed = None if not clock_in else (
+        (now.date() - work_date).days * 1440 + clock_minutes(current_time) - clock_minutes(clock_in)
+    )
+
+    if request.method == 'POST':
+        if (not next_step or request.form.get('attendance_action') != next_step[0]
+                or request.form.get('work_date') != work_date.isoformat()):
+            return httperror('O ponto já mudou. Volte à tela de ponto antes de registrar novamente.', 409), 409
+
+        _, column, label = next_step
+        if elapsed is not None and any(
+            minutes_since_clock_in(entry[key], clock_in) > elapsed
+            for _, key, _ in ATTENDANCE_STEPS if entry.get(key)
+        ):
+            return httperror('O horário atual é anterior ao último ponto registrado.', 409), 409
+
+        try:
+            if not entry:
+                # Keep one row per employee and work date, even if two requests arrive together.
+                written = sqlexecute(
+                    '''
+                    INSERT INTO ponto (id_colaborador, data, hora_entrada) VALUES (?, ?, ?)
+                    ON CONFLICT (id_colaborador, data) DO NOTHING RETURNING id_ponto
+                    ''',
+                    employee_id, work_date.isoformat(), current_time,
+                )
+            else:
+                # The column is selected by the server, and the snapshot prevents duplicate submissions.
+                written = sqlexecute(
+                    f'''
+                    UPDATE ponto SET {column} = ? WHERE id_ponto = ? AND id_colaborador = ?
+                        AND hora_entrada IS ? AND inicio_intervalo IS ?
+                        AND fim_intervalo IS ? AND hora_saida IS ?
+                    ''',
+                    current_time, entry['id_ponto'], employee_id,
+                    *(entry[key] for _, key, _ in ATTENDANCE_STEPS),
+                )
+        except sqlite3.DatabaseError:
+            app.logger.exception('Failed to save attendance')
+            return httperror('Não foi possível registrar o ponto. Tente novamente.', 500), 500
+
+        if not written:
+            return httperror('O ponto já mudou. Volte à tela de ponto antes de registrar novamente.', 409), 409
+
+        flash(f'Ponto registrado às {current_time}: {label.lower()}.', 'attendance-success')
+        return redirect(url_for('attendance'), code=303)
+
+    if 'attendance_token' not in session:
+        session['attendance_token'] = secrets.token_urlsafe(32)
+
+    worked_total = attendance_worked_minutes(entry, max(0, elapsed) if elapsed is not None else None)
+    worked = worked_total or 0
+    expected = attendance_worked_minutes(schedule) or 0
+    balance = worked - expected
+    history = []
+    for row in entries:
+        row_date = date.fromisoformat(row['data'])
+        row_schedule = schedules.get(ATTENDANCE_WEEKDAYS[row_date.weekday()], {})
+        row_worked = worked_total if row_date == work_date else attendance_worked_minutes(row)
+        row_balance = None if row_worked is None else row_worked - (attendance_worked_minutes(row_schedule) or 0)
+        break_start, break_end = row['inicio_intervalo'], row['fim_intervalo']
+        history.append({
+            'date': f'{row_date:%d/%m/%Y} ({ATTENDANCE_WEEKDAYS[row_date.weekday()][:3]})',
+            'clock_in': row['hora_entrada'] or '—',
+            'break_period': f'{break_start} – {break_end or "—"}' if break_start else '—',
+            'clock_out': row['hora_saida'] or '—',
+            'balance': format_attendance_duration(row_balance, signed=True) if row_balance is not None else '—',
+            'is_negative': row_balance is not None and row_balance < 0,
+            'has_no_balance': row_balance is None,
+        })
+
+    return render_template(
+        'attendence.html',
+        server_now=now,
+        work_date=work_date,
+        is_previous_day=work_date != now.date(),
+        next_entry=next_step[2] if next_step else None,
+        next_action=next_step[0] if next_step else None,
+        clock_in=entry.get('hora_entrada') or '—:—',
+        break_start=entry.get('inicio_intervalo') or '—:—',
+        break_end=entry.get('fim_intervalo') or '—:—',
+        clock_out=entry.get('hora_saida') or '—:—',
+        worked_hours=format_attendance_duration(worked),
+        expected_hours=format_attendance_duration(expected),
+        daily_balance=format_attendance_duration(balance, signed=True),
+        is_balance_negative=balance < 0,
+        attendance_history=history,
+        live_summary={
+            'worked': worked,
+            'expected': expected,
+            'running': worked_total is not None and elapsed is not None and elapsed >= 0
+                and not entry.get('hora_saida')
+                and (not entry.get('inicio_intervalo') or bool(entry.get('fim_intervalo'))),
+        },
+    )
 
 
 @app.route('/dashboard_enterprise')
@@ -712,3 +1163,4 @@ def favicon():
         os.path.join(app.root_path, 'static'),
         'favicon.ico',
     )
+
