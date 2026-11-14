@@ -1,8 +1,12 @@
 {% extends "layout.html" %}
-{% set pagina = 'dashboard' %}
+{% set current_page = 'dashboard' %}
 
 {% block main %}
+{% if reviewed_employee_name %}
+<h1 class="page-title">Dashboard de {{ reviewed_employee_name }}</h1>
+{% else %}
 <h1 class="page-title">Bem-Vindo, {{ employee_in_session_fullname.name }}!</h1>
+{% endif %}
 
 <div class="dash">
 
@@ -12,8 +16,8 @@
       <span class="card__title">Horas semanais</span>
     </div>
     <div class="card__inner kpi-rows">
-      <div class="kpi-row"><span>Totais:</span><strong>{{ horas_totais }}</strong></div>
-      <div class="kpi-row"><span>Restantes:</span><strong>{{ horas_restantes }}</strong></div>
+      <div class="kpi-row"><span>Totais:</span><strong>{{ total_hours }}</strong></div>
+      <div class="kpi-row"><span>Restantes:</span><strong>{{ remaining_hours }}</strong></div>
     </div>
   </section>
 
@@ -23,7 +27,7 @@
       <span class="card__title">Último ponto batido</span>
     </div>
     <div class="card__inner card__inner--center">
-      <span class="kpi--lg">{{ ultimo_ponto or 'Sem registros' }}</span>
+      <span class="kpi--lg">{{ last_clock_entry or 'Sem registros' }}</span>
     </div>
   </section>
 
@@ -33,13 +37,25 @@
       <span class="card__title">Salário Atual</span>
     </div>
     <div class="card__inner card__inner--center">
-      <span class="kpi--lg">R$:<br>{{ salario or '—' }}</span>
+      {% if salary %}
+      <span class="kpi--lg">
+        R$:<br><span id="salary-mask" aria-hidden="true">••••••</span><span id="salary-value" hidden>{{ salary }}</span>
+      </span>
+      <button class="btn btn--sm" type="button" id="salary-toggle" aria-controls="salary-value" aria-expanded="false">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span id="salary-toggle-label">Mostrar salário</span>
+      </button>
+      {% else %}
+      <span class="kpi--lg">R$:<br>—</span>
+      {% endif %}
     </div>
   </section>
 
   <section class="card dash__chart">
-    <span class="card__title card__title--sm">Horas de trabalho nas últimas : 8 Semanas</span>
-    <div class="chart-placeholder" id="grafico-horas"></div>
+    <span class="card__title card__title--sm">Horas de trabalho nas últimas 8 semanas</span>
+    <div class="chart-placeholder" style="height: 220px;">
+      <canvas id="hours-chart"></canvas>
+    </div>
   </section>
 
   <section class="card">
@@ -48,11 +64,11 @@
       <span class="card__title card__title--sm">Escala da Semana</span>
     </div>
     <ul class="escala">
-      {% for d in escala %}
-      <li class="{{ 'escala__hoje' if d.hoje }}">
-        <span>{{ d.dia }}</span>
-        <span class="escala__hora"><i class="dot dot--{{ d.cor }}"></i>{{ d.horario }}</span>
-        <span class="escala__status">{{ d.status }}</span>
+      {% for day in work_schedule %}
+      <li class="{{ 'escala__hoje' if day.is_today }}">
+        <span>{{ day.label }}</span>
+        <span class="escala__hora"><i class="dot dot--{{ day.color }}"></i>{{ day.time_range }}</span>
+        <span class="escala__status">{{ day.status }}</span>
       </li>
       {% endfor %}
     </ul>
@@ -61,7 +77,7 @@
   <section class="card">
     <div class="kpi-row">
       <span class="text-accent">Nº atrasos<br>mensais:</span>
-      <strong>{{ atrasos }}</strong>
+      <strong>{{ late_arrivals }}</strong>
     </div>
   </section>
 
@@ -69,18 +85,47 @@
     <span class="text-accent">Ocupação:</span>
     <div class="ocupacao" style="margin-top:8px">
       <span class="ocupacao__icone"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>
-      {{ ocupacao }}
+      {{ occupation }}
     </div>
   </section>
 
   <section class="card">
     <span class="text-accent">Férias</span>
-    <p class="ferias__texto">• Atualmente você possui <span class="text-accent">{{ dias_ferias }}</span> dias de férias</p>
+    <p class="ferias__texto">• Atualmente você possui <span class="text-accent">{{ vacation_days }}</span> dias de férias</p>
     <div class="ferias__acoes">
-      <a href="#" class="btn btn--sm">Solicitar agora →</a>
       <a href="#" class="link">Política de férias</a>
     </div>
   </section>
 
 </div>
+<!-- Set up the weekly hours chart. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard_charts.js') }}"></script>
+<script>
+  const hoursChart = {{ hours_chart | default({'labels': [], 'values': []}) | tojson }};
+  drawBarChart(document.getElementById('hours-chart'), hoursChart, 'Horas');
+</script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  (() => {
+    const toggle = document.getElementById('salary-toggle');
+    if (!toggle) return;
+
+    const value = document.getElementById('salary-value');
+    const mask = document.getElementById('salary-mask');
+    const label = document.getElementById('salary-toggle-label');
+
+    // Reveal the value only after the viewer uses the toggle.
+    toggle.addEventListener('click', () => {
+      const showSalary = value.hidden;
+      value.hidden = !showSalary;
+      mask.hidden = showSalary;
+      toggle.setAttribute('aria-expanded', String(showSalary));
+      label.textContent = showSalary ? 'Ocultar salário' : 'Mostrar salário';
+    });
+  })();
+</script>
 {% endblock %}

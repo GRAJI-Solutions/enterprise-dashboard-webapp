@@ -4,7 +4,7 @@ Operating Systems
 
 ==========================================
 
-/.DS_Store
+**/.DS_Store
 /.DS_Store?
 */._
 /.Spotlight-V100
@@ -35,7 +35,7 @@ Ignores database files in any subdirectory
 **/*.db
 /.sqlite
 /.sqlite3
-/.db-journal
+**/*.db-journal
 
 Default Flask folder for the local database
 

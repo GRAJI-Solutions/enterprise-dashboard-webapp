@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% set pagina = 'colaboradores' %}
+{% set current_page = 'employees' %}
 
 {% block title %}Novo colaborador | Graji Solutions{% endblock %}
 
@@ -99,7 +99,7 @@
     <p class="employee-message employee-message--error" role="alert">{{ error }}</p>
   {% endif %}
 
-  <form method="post" action="{{ url_for('onboard_employee') }}">
+  <form id="onboard-employee-form" method="post" action="{{ url_for('onboard_employee') }}">
     {% if csrf_token is defined %}
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% endif %}
@@ -157,6 +157,7 @@
     <fieldset class="card form-section" aria-describedby="schedule-help">
       <legend class="form-section__title">{{ icon('calcheck') }} Escala semanal</legend>
       <p class="form-hint" id="schedule-help">Marque pelo menos um dia de trabalho e preencha seus horários. Os horários dos dias desmarcados serão ignorados.</p>
+      <p class="employee-message employee-message--error" id="schedule-error" role="alert" hidden>Selecione pelo menos um dia de trabalho.</p>
       {% set days = [('monday', 'Segunda-feira'), ('tuesday', 'Terça-feira'), ('wednesday', 'Quarta-feira'), ('thursday', 'Quinta-feira'), ('friday', 'Sexta-feira'), ('saturday', 'Sábado'), ('sunday', 'Domingo')] %}
       {% set time_fields = [('clock_in', 'Hora de entrada', '08:00'), ('break_start', 'Início do intervalo', '12:00'), ('break_end', 'Fim do intervalo', '13:00'), ('clock_out', 'Hora de saída', '18:00')] %}
       <div class="employee-schedule">
@@ -178,7 +179,13 @@
                 {% set name = 'schedule[' ~ day ~ '][' ~ field ~ ']' %}
                 <div class="time-row">
                   <label for="{{ day }}-{{ field }}">{{ icon('clock') }} {{ text }}</label>
-                  <input type="time" id="{{ day }}-{{ field }}" name="{{ name }}" value="{{ request.form.get(name, '') if request.method == 'POST' else default }}">
+                  <input type="text" inputmode="numeric" id="{{ day }}-{{ field }}" name="{{ name }}"
+                         value="{{ request.form.get(name, '') if request.method == 'POST' else default }}"
+                         placeholder="HH:MM" maxlength="5" autocomplete="off"
+                         pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="Informe um horário entre 00:00 e 23:59."
+                         data-time-field="{{ field }}" data-default="{{ default }}"
+                         {% if active and field in ['clock_in', 'clock_out'] %}required{% endif %}
+                         {% if not active %}disabled{% endif %}>
                 </div>
               {% endfor %}
             </div>
@@ -194,4 +201,99 @@
     </div>
   </form>
 </section>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  (() => {
+    const form = document.getElementById('onboard-employee-form');
+    const cards = form.querySelectorAll('.schedule-day');
+    const timeInputs = form.querySelectorAll('[data-time-field]');
+    const scheduleError = document.getElementById('schedule-error');
+
+    // Use a fixed 24-hour format, independent of the browser's AM/PM display.
+    function normalizeTime(value) {
+      const text = value.trim();
+      if (!text) return '';
+
+      let hours;
+      let minutes;
+      if (/^\d{1,2}$/.test(text)) {
+        hours = Number(text);
+        minutes = 0;
+      } else if (/^\d{3,4}$/.test(text)) {
+        hours = Number(text.slice(0, -2));
+        minutes = Number(text.slice(-2));
+      } else {
+        const match = /^(\d{1,2}):(\d{2})$/.exec(text);
+        if (!match) return null;
+        hours = Number(match[1]);
+        minutes = Number(match[2]);
+      }
+
+      if (hours > 23 || minutes > 59) return null;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+
+    function validateTime(input) {
+      if (input.disabled) {
+        input.setCustomValidity('');
+        return;
+      }
+      const normalized = normalizeTime(input.value);
+      if (normalized === null) {
+        input.setCustomValidity('Informe um horário válido entre 00:00 e 23:59.');
+      } else {
+        input.value = normalized;
+        input.setCustomValidity('');
+      }
+    }
+
+    function syncCard(card) {
+      const active = card.querySelector('.day-switch input').checked;
+      card.querySelectorAll('[data-time-field]').forEach(input => {
+        input.disabled = !active;
+        input.required = active &&
+          ['clock_in', 'clock_out'].includes(input.dataset.timeField);
+        if (input.disabled) input.setCustomValidity('');
+      });
+    }
+
+    cards.forEach(card => {
+      card.querySelector('.day-switch input').addEventListener('change', () => {
+        syncCard(card);
+        card.querySelectorAll('[data-time-field]').forEach(input => {
+          if (!input.disabled && input.required && !input.value) {
+            input.value = input.dataset.default;
+          }
+        });
+        if ([...cards].some(day => day.querySelector('.day-switch input').checked)) {
+          scheduleError.hidden = true;
+        }
+      });
+      syncCard(card);
+    });
+
+    timeInputs.forEach(input => {
+      input.addEventListener('input', () => input.setCustomValidity(''));
+      input.addEventListener('blur', () => validateTime(input));
+    });
+
+    // Normalize shorthand before running native validation, including Enter submission.
+    form.noValidate = true;
+    form.addEventListener('submit', event => {
+      timeInputs.forEach(validateTime);
+      const hasWorkday = [...cards].some(card => card.querySelector('.day-switch input').checked);
+      if (!hasWorkday) {
+        event.preventDefault();
+        scheduleError.hidden = false;
+        cards[0].querySelector('.day-switch input').focus();
+        scheduleError.scrollIntoView({ block: 'center' });
+        return;
+      }
+      if (!form.reportValidity()) event.preventDefault();
+    });
+  })();
+</script>
 {% endblock %}
