@@ -104,7 +104,38 @@ def login():
 
 
 
-def render_employee_dashboard(employee_id, *, reviewed_employee_name=None):
+def current_viewer():
+    """Colaborador logado e o nível de acesso atual (lido do banco, não da sessão)."""
+    rows = sqlexecute(
+        '''
+        SELECT c.id_colaborador AS id, l.nivel_acesso AS level
+        FROM colaborador c
+        JOIN login l ON l.id_login = c.id_login
+        WHERE l.id_login = ?
+        ''',
+        session["user_id"],
+    )
+    return rows[0] if rows else None
+
+
+def dashboard_profile_options(viewer):
+    """Colaboradores que o usuário logado pode abrir no dashboard.
+    Nível 2 (chefe): todos. Nível 1 (RH): só nível 0. Nível 0: ninguém."""
+    if viewer["level"] < 1:
+        return []
+
+    query = '''
+        SELECT c.id_colaborador AS id, c.nome_completo AS name, l.nivel_acesso AS level
+        FROM colaborador c
+        JOIN login l ON l.id_login = c.id_login
+        WHERE c.id_colaborador <> ?
+    '''
+    if viewer["level"] < 2:
+        query += " AND l.nivel_acesso = 0"
+    return sqlexecute(query + " ORDER BY c.nome_completo", viewer["id"])
+
+
+def render_employee_dashboard(employee_id, viewer, *, reviewed_employee_name=None):
     now = attendance_now()
     today = now.date().isoformat()
     salary_rows = sqlexecute(
@@ -118,13 +149,14 @@ def render_employee_dashboard(employee_id, *, reviewed_employee_name=None):
     )
     salary = None
     if salary_rows:
-        # Format the current salary for display without changing the stored value.
         salary = f"{salary_rows[0]['valor']:,.2f}".translate(str.maketrans(',.', '.,'))
 
     return render_template(
         'dashboard.html',
         hours_chart=hours_last_eight_weeks(employee_id),
         reviewed_employee_name=reviewed_employee_name,
+        profile_options=dashboard_profile_options(viewer),
+        selected_employee_id=employee_id,
         salary=salary,
         **employee_dashboard_metrics(employee_id, now),
     )
@@ -133,31 +165,44 @@ def render_employee_dashboard(employee_id, *, reviewed_employee_name=None):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    employee_rows = sqlexecute(
-        "SELECT id_colaborador FROM colaborador WHERE id_login = ?",
-        session["user_id"],
-    )
-
-    if not employee_rows:
+    viewer = current_viewer()
+    if not viewer:
         return httperror("Colaborador não encontrado.", 404), 404
 
-    return render_employee_dashboard(employee_rows[0]["id_colaborador"])
+    return render_employee_dashboard(viewer["id"], viewer)
 
 
 @app.route('/dashboard/employee/<int:employee_id>')
 @login_required
 @level_required(1)
 def employee_dashboard(employee_id):
-    employee_rows = sqlexecute(
-        "SELECT nome_completo FROM colaborador WHERE id_colaborador = ?",
+    viewer = current_viewer()
+    if not viewer:
+        return httperror("Colaborador não encontrado.", 404), 404
+
+    if employee_id == viewer["id"]:
+        return redirect(url_for('dashboard'))
+
+    target_rows = sqlexecute(
+        '''
+        SELECT c.nome_completo, l.nivel_acesso
+        FROM colaborador c
+        JOIN login l ON l.id_login = c.id_login
+        WHERE c.id_colaborador = ?
+        ''',
         employee_id,
     )
-    if not employee_rows:
+    if not target_rows:
         return httperror("Colaborador não encontrado.", 404), 404
+    target = target_rows[0]
+
+    if viewer["level"] < 2 and target["nivel_acesso"] != 0:
+        return httperror("Você não tem permissão para ver este dashboard.", 403), 403
 
     return render_employee_dashboard(
         employee_id,
-        reviewed_employee_name=employee_rows[0]["nome_completo"],
+        viewer,
+        reviewed_employee_name=target["nome_completo"],
     )
 
 
