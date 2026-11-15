@@ -2,11 +2,46 @@
 {% set current_page = 'dashboard' %}
 
 {% block main %}
-{% if reviewed_employee_name %}
-<h1 class="page-title">Dashboard de {{ reviewed_employee_name }}</h1>
-{% else %}
-<h1 class="page-title">Bem-Vindo, {{ employee_in_session_fullname.name }}!</h1>
-{% endif %}
+{% set level_tags = {1: 'RH', 2: 'Chefe'} %}
+
+<div class="dash-top">
+  {% if reviewed_employee_name %}
+  <h1 class="page-title">Dados de {{ reviewed_employee_name }}</h1>
+  {% else %}
+  <h1 class="page-title">Bem-Vindo, {{ employee_in_session_fullname.name }}!</h1>
+  {% endif %}
+
+  {% if profile_options %}
+  <div class="profile-switch" id="profile-switch">
+    <button type="button" class="profile-switch__btn" id="profile-switch-btn"
+            aria-haspopup="true" aria-expanded="false" aria-controls="profile-switch-menu">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.6 3-6 7-6s7 2.4 7 6M17 5a3.5 3.5 0 0 1 0 6.5M22 20c0-2.6-1.6-4.5-4-5.5"/></svg>
+      <span>{{ 'Trocar colaborador' if reviewed_employee_name else 'Meu perfil' }}</span>
+      <svg class="ico profile-switch__caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+
+    <div class="profile-switch__menu" id="profile-switch-menu" hidden>
+      <input type="search" class="profile-switch__search" id="profile-switch-search"
+             placeholder="Buscar colaborador" aria-label="Buscar colaborador" autocomplete="off">
+      <ul class="profile-switch__list">
+        <li data-name="meu perfil">
+          <a href="{{ url_for('dashboard') }}" class="{{ 'is-active' if not reviewed_employee_name }}">Meu perfil</a>
+        </li>
+        {% for p in profile_options %}
+        <li data-name="{{ p.name | lower }}">
+          <a href="{{ url_for('employee_dashboard', employee_id=p.id) }}"
+             class="{{ 'is-active' if p.id == selected_employee_id }}">
+            {{ p.name }}
+            {% if level_tags.get(p.level) %}<small>{{ level_tags[p.level] }}</small>{% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="profile-switch__empty" hidden>Nenhum colaborador encontrado.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
 
 <div class="dash">
 
@@ -91,7 +126,7 @@
 
   <section class="card">
     <span class="text-accent">Férias</span>
-    <p class="ferias__texto">• Atualmente você possui <span class="text-accent">{{ vacation_days }}</span> dias de férias</p>
+    <p class="ferias__texto">• {{ 'O colaborador possui' if reviewed_employee_name else 'Atualmente você possui' }} <span class="text-accent">{{ vacation_days }}</span> dias de férias</p>
     <div class="ferias__acoes">
       <a href="#" class="link">Política de férias</a>
     </div>
@@ -125,6 +160,51 @@
       mask.hidden = showSalary;
       toggle.setAttribute('aria-expanded', String(showSalary));
       label.textContent = showSalary ? 'Ocultar salário' : 'Mostrar salário';
+    });
+  })();
+</script>
+<script>
+  (() => {
+    const root = document.getElementById('profile-switch');
+    if (!root) return;
+
+    const button = document.getElementById('profile-switch-btn');
+    const menu = document.getElementById('profile-switch-menu');
+    const search = document.getElementById('profile-switch-search');
+    const items = menu.querySelectorAll('li[data-name]');
+    const empty = menu.querySelector('.profile-switch__empty');
+
+    function filterList() {
+      const term = search.value.trim().toLowerCase();
+      let visible = 0;
+      items.forEach(item => {
+        const show = item.dataset.name.includes(term);
+        item.hidden = !show;
+        if (show) visible++;
+      });
+      empty.hidden = visible > 0;
+    }
+
+    function setOpen(open) {
+      menu.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+      if (open) {
+        search.value = '';
+        filterList();
+        search.focus();
+      }
+    }
+
+    button.addEventListener('click', () => setOpen(menu.hidden));
+    search.addEventListener('input', filterList);
+    document.addEventListener('click', event => {
+      if (!root.contains(event.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !menu.hidden) {
+        setOpen(false);
+        button.focus();
+      }
     });
   })();
 </script>

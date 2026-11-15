@@ -774,3 +774,84 @@ a {
         font-size: clamp(2rem, 2.5vw, 2.8rem);
     }
 }
+
+/* ---------- Seletor de perfil (RH / Chefe) ---------- */
+.dash-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.dash-top .page-title { margin-bottom: 0; }
+
+.profile-switch { position: relative; }
+.profile-switch__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: filter 0.2s, border-color 0.2s;
+}
+.profile-switch__btn:hover { filter: brightness(1.2); }
+.profile-switch__btn[aria-expanded="true"] { border-color: var(--nav-active-border); }
+.profile-switch__caret { transition: transform 0.2s; }
+.profile-switch__btn[aria-expanded="true"] .profile-switch__caret { transform: rotate(180deg); }
+
+.profile-switch__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(320px, 90vw);
+  padding: 10px;
+  background: rgba(18, 20, 30, 0.95);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+.profile-switch__menu[hidden] { display: none; }
+
+.profile-switch__search {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: rgba(10, 12, 22, 0.55);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  outline: none;
+}
+.profile-switch__search:focus { border-color: var(--accent); }
+
+.profile-switch__list { list-style: none; max-height: 280px; overflow-y: auto; }
+.profile-switch__list a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.profile-switch__list a:hover { background: rgba(255, 255, 255, 0.08); }
+.profile-switch__list a.is-active {
+  background: var(--nav-active-bg);
+  border-color: var(--nav-active-border);
+}
+.profile-switch__list small { font-size: 0.7rem; color: var(--text-soft); }
+.profile-switch__empty { padding: 10px 12px; font-size: 0.8rem; color: var(--text-soft); }
