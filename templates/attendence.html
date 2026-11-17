@@ -1,9 +1,13 @@
 {% extends "layout.html" %}
-{% set pagina = 'bater_ponto' %}
+{% set current_page = 'attendance' %}
 
-{% block body %}
+{% block main %}
 <h1 class="page-title">Bater Ponto</h1>
 <p class="page-subtitle">Registre seu ponto de entrada, saída e intervalos.</p>
+
+{% for message in get_flashed_messages(category_filter=['attendance-success']) %}
+  <p class="page-subtitle text-green" role="status">{{ message }}</p>
+{% endfor %}
 
 <div class="ponto">
 
@@ -16,17 +20,24 @@
 
     <div class="relogio">
       <span class="relogio__label">Horário atual</span>
-      <span class="relogio__hora" id="relogio-hora">--:--:--</span>
-      <span class="relogio__data" id="relogio-data"></span>
-      <span class="relogio__data" id="relogio-dia"></span>
+      <span class="relogio__hora" id="clock-time">{{ server_now.strftime('%H:%M:%S') }}</span>
+      <span class="relogio__data" id="clock-date"></span>
+      <span class="relogio__data" id="clock-weekday"></span>
     </div>
 
-    <form method="post">
-      {% if proximo %}
+    {% if is_previous_day %}
+      <p class="ponto__proximo">Jornada iniciada em {{ work_date.strftime('%d/%m/%Y') }}.</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('attendance') }}">
+      {% if next_entry %}
+        <input type="hidden" name="attendance_token" value="{{ session['attendance_token'] }}">
+        <input type="hidden" name="attendance_action" value="{{ next_action }}">
+        <input type="hidden" name="work_date" value="{{ work_date.isoformat() }}">
         <button type="submit" class="btn btn--primary">Bater ponto agora</button>
-        <p class="ponto__proximo">Próximo registro: {{ proximo }}</p>
+        <p class="ponto__proximo">Próximo registro: {{ next_entry }}</p>
       {% else %}
-        <button type="button" class="btn btn--primary" disabled>Ponto do dia completo</button>
+        <button type="button" class="btn btn--primary" disabled>Jornada concluída</button>
       {% endif %}
     </form>
     <p class="ponto__seguro">Seu ponto registrado com segurança</p>
@@ -42,30 +53,30 @@
       <div class="tile text-green">
         <svg class="ico" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>
         <span style="color:var(--text)">Entrada</span>
-        <span class="tile__valor">{{ entrada }}</span>
+        <span class="tile__valor">{{ clock_in }}</span>
       </div>
       <div class="tile text-orange">
         <svg class="ico" viewBox="0 0 24 24"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2"/></svg>
         <span style="color:var(--text)">Intervalo: Início</span>
-        <span class="tile__valor">{{ inicio_intervalo }}</span>
+        <span class="tile__valor">{{ break_start }}</span>
       </div>
       <div class="tile text-blue">
         <svg class="ico" viewBox="0 0 24 24"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2"/></svg>
         <span style="color:var(--text)">Intervalo: Fim</span>
-        <span class="tile__valor">{{ fim_intervalo }}</span>
+        <span class="tile__valor">{{ break_end }}</span>
       </div>
       <div class="tile text-red">
         <svg class="ico" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
         <span style="color:var(--text)">Saída</span>
-        <span class="tile__valor">{{ saida }}</span>
+        <span class="tile__valor">{{ clock_out }}</span>
       </div>
     </div>
 
-    <div class="linha-info"><span>Jornada de hoje</span><span>{{ jornada }}</span></div>
-    <div class="linha-info"><span>Horas esperadas</span><span>{{ horas_esperadas }}</span></div>
+    <div class="linha-info"><span>{{ 'Jornada anterior' if is_previous_day else 'Jornada de hoje' }}</span><span id="worked-hours">{{ worked_hours }}</span></div>
+    <div class="linha-info"><span>Horas esperadas</span><span>{{ expected_hours }}</span></div>
     <div class="linha-info">
       <span>Saldo do dia</span>
-      <span class="{{ 'text-red' if saldo_negativo else 'text-green' }}">{{ saldo_dia }}</span>
+      <span id="daily-balance" class="{{ 'text-red' if is_balance_negative else 'text-green' }}">{{ daily_balance }}</span>
     </div>
   </section>
 
@@ -79,19 +90,22 @@
         <tr><th>Data</th><th>Entrada</th><th>Intervalo</th><th>Saída</th><th>Saldo</th></tr>
       </thead>
       <tbody>
-        {% for h in historico %}
+        {% for entry in attendance_history %}
         <tr>
-          <td>{{ h.data }}</td>
-          <td class="text-green">{{ h.entrada }}</td>
-          <td class="text-orange">{{ h.intervalo }}</td>
-          <td class="text-red">{{ h.saida }}</td>
-          <td class="{{ 'text-red' if h.negativo else ('' if h.sem_saldo else 'text-green') }}">{{ h.saldo }}</td>
+          <td>{{ entry.date }}</td>
+          <td class="text-green">{{ entry.clock_in }}</td>
+          <td class="text-orange">{{ entry.break_period }}</td>
+          <td class="text-red">{{ entry.clock_out }}</td>
+          <td class="{{ 'text-red' if entry.is_negative else ('' if entry.has_no_balance else 'text-green') }}">{{ entry.balance }}</td>
         </tr>
         {% else %}
         <tr><td colspan="5">Nenhum registro ainda</td></tr>
         {% endfor %}
       </tbody>
     </table>
+    {% if attendance_history %}
+      <p class="ponto__proximo">Últimos 10 registros. Saldos calculados com a escala atual.</p>
+    {% endif %}
   </section>
 
 </div>
@@ -100,17 +114,41 @@
 {% block scripts %}
 <script>
   (function () {
-    const hora = document.getElementById('relogio-hora');
-    const data = document.getElementById('relogio-data');
-    const dia = document.getElementById('relogio-dia');
-    function tick() {
-      const agora = new Date();
-      hora.textContent = agora.toLocaleTimeString('pt-BR', { hour12: false });
-      data.textContent = agora.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
-      dia.textContent = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const timeElement = document.getElementById('clock-time');
+    const dateElement = document.getElementById('clock-date');
+    const weekdayElement = document.getElementById('clock-weekday');
+    const workedElement = document.getElementById('worked-hours');
+    const balanceElement = document.getElementById('daily-balance');
+    const serverTime = Date.parse({{ server_now.isoformat() | tojson }});
+    const startedAt = performance.now();
+    const timeZone = 'America/Sao_Paulo';
+    const summary = {{ live_summary | tojson }};
+
+    function formatDuration(minutes, signed = false) {
+      const prefix = minutes < 0 ? '-' : (signed && minutes > 0 ? '+' : '');
+      const absolute = Math.abs(minutes);
+      const hours = String(Math.floor(absolute / 60)).padStart(2, '0');
+      const rest = String(absolute % 60).padStart(2, '0');
+      return `${prefix}${hours}:${rest}`;
     }
-    tick();
-    setInterval(tick, 1000);
+
+    function updateClock() {
+      const now = new Date(serverTime + performance.now() - startedAt);
+      timeElement.textContent = now.toLocaleTimeString('pt-BR', { timeZone, hourCycle: 'h23' });
+      dateElement.textContent = now.toLocaleDateString('pt-BR', { timeZone, day: 'numeric', month: 'long', year: 'numeric' });
+      weekdayElement.textContent = now.toLocaleDateString('pt-BR', { timeZone, weekday: 'long' });
+      if (summary.running) {
+        const elapsedMinutes = Math.floor(now.getTime() / 60000) - Math.floor(serverTime / 60000);
+        const worked = summary.worked + elapsedMinutes;
+        const balance = worked - summary.expected;
+        workedElement.textContent = formatDuration(worked);
+        balanceElement.textContent = formatDuration(balance, true);
+        balanceElement.classList.toggle('text-red', balance < 0);
+        balanceElement.classList.toggle('text-green', balance >= 0);
+      }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
   })();
 </script>
 {% endblock %}

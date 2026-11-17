@@ -1,14 +1,16 @@
 {% extends "layout.html" %}
-{% set pagina = 'corporacao' %}
+{% set current_page = 'dashboard_enterprise' %}
 
-{% block body %}
+{% block main %}
 <h1 class="page-title">Bem-Vindo, Chefe!</h1>
 
 <div class="corp">
 
   <section class="card">
     <span class="card__title card__title--sm">Faltas totais nos últimos 5 meses</span>
-    <div class="chart-placeholder" id="grafico-faltas"></div>
+    <div class="chart-placeholder" style="height: 220px;">
+      <canvas id="absences-chart"></canvas>
+    </div>
   </section>
 
   <section class="card">
@@ -16,13 +18,15 @@
       <span class="card__icon"><svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.6 3-6 7-6s7 2.4 7 6M17 5a3.5 3.5 0 0 1 0 6.5M22 20c0-2.6-1.6-4.5-4-5.5"/></svg></span>
       <span class="card__title card__title--sm">Informações gerais dos colaboradores</span>
     </div>
-    <div class="chart-placeholder" id="grafico-colaboradores" style="min-height:190px"></div>
+    <div class="chart-placeholder" style="height: 190px;">
+      <canvas id="departments-chart"></canvas>
+    </div>
     <div class="legenda">
-      {% for d in departamentos %}
-      <span><i style="background: {{ d.cor }}"></i>{{ d.nome }} ({{ d.total }})</span>
+      {% for department in departments %}
+      <span><i style="background: {{ department.color }}"></i>{{ department.name }} ({{ department.total }})</span>
       {% endfor %}
     </div>
-    <p class="ponto__proximo">Total: {{ total_colaboradores }} colaboradores</p>
+    <p class="ponto__proximo">Total: {{ total_employees }} colaboradores</p>
   </section>
 
 </div>
@@ -35,7 +39,7 @@
       <span class="card__title card__title--sm">Salário médio</span>
     </div>
     <div class="card__inner card__inner--center" style="min-height:130px">
-      <span class="kpi--lg">R$: {{ salario_medio or '—' }}</span>
+      <span class="kpi--lg">R$: {{ average_salary or '—' }}</span>
     </div>
   </section>
 
@@ -45,7 +49,7 @@
       <span class="card__title card__title--sm">Colaboradores com aumento de desempenho</span>
     </div>
     <div class="card__inner card__inner--center" style="min-height:130px">
-      <span class="kpi">{{ desempenho_alta }}</span>
+      <span class="kpi">{{ performance.increased }}</span>
     </div>
   </section>
 
@@ -55,9 +59,18 @@
       <span class="card__title card__title--sm">Colaboradores com queda de desempenho</span>
     </div>
     <div class="card__inner card__inner--center" style="min-height:130px">
-      <span class="kpi">{{ desempenho_queda }}</span>
+      <span class="kpi">{{ performance.decreased }}</span>
     </div>
   </section>
 
 </div>
+<!-- Set up the company dashboard charts. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard_charts.js') }}"></script>
+<script>
+  const absencesChart = {{ absences_chart | default({'labels': [], 'values': []}) | tojson }};
+  const departmentData = {{ departments | default([]) | tojson }};
+  drawBarChart(document.getElementById('absences-chart'), absencesChart, 'Faltas');
+  drawDoughnutChart(document.getElementById('departments-chart'), departmentData);
+</script>
 {% endblock %}
